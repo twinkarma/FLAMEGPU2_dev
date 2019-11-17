@@ -9,7 +9,9 @@
  * If this macro is used instead of 'throw', FGPUException will 
  * prepend '__FILE__ (__LINE__): ' to err_message 
  */
+#ifndef __CUDA_ARCH__
 #define THROW FGPUException::setLocation(__FILE__, __LINE__); throw
+#endif
 
 /*! Class for unknown exceptions thrown*/
 class UnknownError : public std::exception {};

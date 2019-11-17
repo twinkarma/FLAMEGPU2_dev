@@ -17,7 +17,7 @@
 
 #include "flamegpu/flame_api.h"
 
-
+#include "flamegpu/exception/FGPUDeviceException.h"
 /* must be compiled separately using FLAME GPU builder
  * This will generate object files for different architecture targets as well as ptx info for each agent function (registers, memory use etc.)
  * http://stackoverflow.com/questions/12388207/interpreting-output-of-ptxas-options-v
@@ -47,7 +47,7 @@ FLAMEGPU_AGENT_FUNCTION(output_func) {
     // printf("x = %f\n", x);
     FLAMEGPU->setVariable<float>("x", x + 2);
     x = FLAMEGPU->getVariable<float>("x");
-
+    THROW DeviceException("arg! %d", 12);
     return ALIVE;
 }
 
@@ -70,6 +70,7 @@ FLAMEGPU_AGENT_FUNCTION(stay_func) {
 
 
 int main(void) {
+    DeviceException::reset();
     /* MODEL */
     /* The model is the description of the actual model that is equivalent to that described by model.xml*/
     /* Nothing with GPUs it is only about building the model description in memory */

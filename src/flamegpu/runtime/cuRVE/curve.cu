@@ -2,6 +2,7 @@
 #include <cassert>
 
 #include "flamegpu/runtime/cuRVE/curve.h"
+#include "flamegpu/gpu/CUDAErrorChecking.h"
 
 #define CURVE_MAX_VARIABLES             32                             // !< Default maximum number of cuRVE variables (must be a power of 2)
 #define VARIABLE_DISABLED                 0
@@ -213,7 +214,7 @@ __host__ void curveUnregisterVariableByHash(CurveVariableHash variable_hash) {
 
     // clear hash location on host and copy hash to device
     h_hashes[cv] = 0;
-    CUDA_SAFE_CALL(cudaMemcpy(&_d_hashes[cv], &h_hashes[cv], sizeof(unsigned int), cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy(&_d_hashes[cv], &h_hashes[cv], sizeof(unsigned int), cudaMemcpyHostToDevice));
 
     // set a host pointer to nullptr and copy to the device
     h_d_variables[cv] = 0;
