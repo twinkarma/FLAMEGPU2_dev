@@ -10,24 +10,6 @@
 #include "flamegpu/util/nvtx.h"
 
 
-// Environment Bounds
-#define MIN_POSITION -0.5f
-#define MAX_POSITION +0.5f
-
-// Interaction radius
-#define INTERACTION_RADIUS 0.1f
-#define SEPARATION_RADIUS 0.005f
-
-// Global Scalers
-#define TIME_SCALE 0.0005f
-#define GLOBAL_SCALE 0.15f
-
-
-// Rule scalers
-#define STEER_SCALE 0.65f
-#define COLLISION_SCALE 0.75f
-#define MATCH_SCALE 1.25f
-
 // @todo - need to abstract __device__ away from the modeller.
 // Get the length of a vector
 inline __device__ float length(const float x, const float y, const float z) {
@@ -35,8 +17,8 @@ inline __device__ float length(const float x, const float y, const float z) {
 }
 
 // Bound the agent to the environment
-// @todo - this is actually wrapping?
-__device__ void boundPosition(float &x, float &y, float &z) {
+// @todo - this is actually wrapping? Should this be claming instead?
+__device__ void boundPosition(float &x, float &y, float &z, const float MIN_POSITION, const float MAX_POSITION) {
     // @todo switch to env vars.
     // Bound x.
     x = (x < MIN_POSITION)? MAX_POSITION: x;
@@ -92,6 +74,8 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     float collision_centre_z = 0.0f;
     int collision_count = 0;
 
+    const float INTERACTION_RADIUS = FLAMEGPU->environment.get<float>("INTERACTION_RADIUS");
+    const float SEPARATION_RADIUS = FLAMEGPU->environment.get<float>("SEPARATION_RADIUS");
     // Iterate location messages, accumulating relevant data and counts.
     for (const auto &message : FLAMEGPU->message_in) {
         // Ignore self messages.
@@ -143,7 +127,6 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     collision_centre_y /= collision_count;
     collision_centre_z /= collision_count;
 
-
     // Total change in velocity
     float velocity_change_x = 0.f;
     float velocity_change_y = 0.f;
@@ -154,6 +137,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     float steer_velocity_y = 0.f;
     float steer_velocity_z = 0.f;
     if (perceived_count > 0) {
+        const float STEER_SCALE = FLAMEGPU->environment.get<float>("STEER_SCALE");
         steer_velocity_x = (perceived_centre_x - agent_x) * STEER_SCALE;
         steer_velocity_y = (perceived_centre_y - agent_y) * STEER_SCALE;
         steer_velocity_z = (perceived_centre_z - agent_z) * STEER_SCALE;
@@ -167,6 +151,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     float match_velocity_y = 0.f;
     float match_velocity_z = 0.f;
     if (collision_count > 0) {
+        const float MATCH_SCALE = FLAMEGPU->environment.get<float>("MATCH_SCALE");
         match_velocity_x = global_velocity_x * MATCH_SCALE;
         match_velocity_y = global_velocity_y * MATCH_SCALE;
         match_velocity_z = global_velocity_z * MATCH_SCALE;
@@ -180,6 +165,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     float avoid_velocity_y = 0.0f;
     float avoid_velocity_z = 0.0f;
     if (collision_count > 0) {
+        const float COLLISION_SCALE = FLAMEGPU->environment.get<float>("COLLISION_SCALE");
         avoid_velocity_x = (agent_x - collision_centre_x) * COLLISION_SCALE;
         avoid_velocity_y = (agent_y - collision_centre_y) * COLLISION_SCALE;
         avoid_velocity_z = (agent_z - collision_centre_z) * COLLISION_SCALE;
@@ -188,8 +174,8 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     velocity_change_y += avoid_velocity_y;
     velocity_change_z += avoid_velocity_z;
 
-
     // Global scale of velocity change
+    const float GLOBAL_SCALE = FLAMEGPU->environment.get<float>("GLOBAL_SCALE");
     velocity_change_x *= GLOBAL_SCALE;
     velocity_change_y *= GLOBAL_SCALE;
     velocity_change_z *= GLOBAL_SCALE;
@@ -208,16 +194,13 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     }
 
     // Apply the velocity
+    const float TIME_SCALE = FLAMEGPU->environment.get<float>("TIME_SCALE");
     agent_x += agent_fx * TIME_SCALE;
     agent_y += agent_fy * TIME_SCALE;
     agent_z += agent_fz * TIME_SCALE;
 
     // Bound position
-    boundPosition(agent_x, agent_y, agent_z);
-
-    if (id == 0) {
-        printf("agent %d (%+1.5f, %+1.5f, %+1.5f) (%+1.5f, %+1.5f, %+1.5f)\n", id, agent_x, agent_y, agent_z, agent_fx, agent_fy, agent_fz);
-    }
+    boundPosition(agent_x, agent_y, agent_z, FLAMEGPU->environment.get<float>("MIN_POSITION"), FLAMEGPU->environment.get<float>("MAX_POSITION"));
 
     // Update global agent memory.
     FLAMEGPU->setVariable<float>("x", agent_x);
@@ -266,8 +249,8 @@ int main(int argc, const char ** argv) {
         EnvironmentDescription &env = model.Environment();
 
         // Environment Bounds
-        /* env.add("MIN_POSITION", -0.5f);
-        env.add("MAX_POSITION", +0.5f);
+        env.add("MIN_POSITION", -0.05f);
+        env.add("MAX_POSITION", +0.05f);
 
         // Interaction radius
         env.add("INTERACTION_RADIUS", 0.1f);
@@ -277,20 +260,15 @@ int main(int argc, const char ** argv) {
         env.add("TIME_SCALE", 0.0005f);
         env.add("GLOBAL_SCALE", 0.15f);
 
-
         // Rule scalers
         env.add("STEER_SCALE", 0.65f);
         env.add("COLLISION_SCALE", 0.75f);
-        env.add("MATCH_SCALE", 1.25f); */
+        env.add("MATCH_SCALE", 1.25f);
     }
 
     /**
      * Control flow
      */     
-    {   // Attach init/step/exit functions and exit condition
-        // model.addStepFunction(Validation);
-    }
-
     {   // Layer #1
         LayerDescription &layer = model.newLayer();
         layer.addAgentFunction(outputdata);
@@ -317,7 +295,8 @@ int main(int argc, const char ** argv) {
         const unsigned int AGENT_COUNT = 32;
         // @todo better RNG / seeding. Multiple distributions from multiple seeds (generated from a single, cli-based seed)
         std::default_random_engine rng;
-        std::uniform_real_distribution<float> pos_dist(MIN_POSITION, MAX_POSITION);
+        EnvironmentDescription &env = model.Environment();
+        std::uniform_real_distribution<float> pos_dist(env.get<float>("MIN_POSITION"), env.get<float>("MAX_POSITION"));
         std::uniform_real_distribution<float> velocity_dist(-1, 1);
         AgentPopulation population(model.Agent("Boid"), AGENT_COUNT);
         for (unsigned int i = 0; i < AGENT_COUNT; i++) {
@@ -330,7 +309,7 @@ int main(int argc, const char ** argv) {
             instance.setVariable<float>("fx", velocity_dist(rng));
             instance.setVariable<float>("fy", velocity_dist(rng));
             instance.setVariable<float>("fz", velocity_dist(rng));
-            printf(
+            /* printf(
                 "new boid %d at (%+1.5f, %+1.5f, %+1.5f), with velocity (%+1.5f, %+1.5f, %+1.5f)\n",
                 instance.getVariable<int>("id"),
                 instance.getVariable<float>("x"),
@@ -338,7 +317,7 @@ int main(int argc, const char ** argv) {
                 instance.getVariable<float>("z"),
                 instance.getVariable<float>("fx"),
                 instance.getVariable<float>("fy"),
-                instance.getVariable<float>("fz"));
+                instance.getVariable<float>("fz")); */
         }
         cuda_model.setPopulationData(population);
     }
