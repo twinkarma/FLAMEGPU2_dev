@@ -249,8 +249,8 @@ int main(int argc, const char ** argv) {
         EnvironmentDescription &env = model.Environment();
 
         // Environment Bounds
-        env.add("MIN_POSITION", -0.05f);
-        env.add("MAX_POSITION", +0.05f);
+        env.add("MIN_POSITION", -0.5f);
+        env.add("MAX_POSITION", +0.5f);
 
         // Interaction radius
         env.add("INTERACTION_RADIUS", 0.1f);
@@ -285,6 +285,26 @@ int main(int argc, const char ** argv) {
     CUDAAgentModel cuda_model(model);
 
     /**
+     * Create visualisation
+     */
+#ifdef VISUALISATION
+    ModelVis &visualisation = cuda_model.getVisualisation();
+    {
+
+        EnvironmentDescription &env = model.Environment();
+        float envWidth = env.get<float>("MAX_POSITION") - env.get<float>("MIN_POSITION");
+        const float INIT_CAM = env.get<float>("MAX_POSITION") * 1.25f;
+        visualisation.setInitialCameraLocation(INIT_CAM, INIT_CAM, INIT_CAM);
+        visualisation.setCameraSpeed(0.002f * envWidth);
+        auto &circ_agt = visualisation.addAgent("Boid");
+        // Position vars are named x, y, z; so they are used by default
+        circ_agt.setModel(Stock::Models::ICOSPHERE);
+        circ_agt.setModelScale(env.get<float>("SEPARATION_RADIUS"));
+    }
+    visualisation.activate();
+#endif
+
+    /**
      * Initialisation
      */
     cuda_model.initialise(argc, argv);
@@ -292,7 +312,7 @@ int main(int argc, const char ** argv) {
     // If no xml model file was is provided, generate a population.
     if (cuda_model.getSimulationConfig().xml_input_file.empty()) {
         // Currently population has not been init, so generate an agent population on the fly
-        const unsigned int AGENT_COUNT = 32;
+        const unsigned int AGENT_COUNT = 2048;
         // @todo better RNG / seeding. Multiple distributions from multiple seeds (generated from a single, cli-based seed)
         std::default_random_engine rng;
         EnvironmentDescription &env = model.Environment();
@@ -331,14 +351,11 @@ int main(int argc, const char ** argv) {
     /**
      * Export Pop
      */
-    // cuda_model.output();
-    // Based on Simulation::output() // That can't currently be called
-    // std::unordered_map<std::string, std::shared_ptr<AgentPopulation>> pops;
-    // auto a = std::make_shared<AgentPopulation>(model.getAgent("Boid"));
-    // cuda_model.getPopulationData(*a);
-    // pops.emplace("Boid", a);
-    // StateWriter *write__ = WriterFactory::createWriter(pops, cuda_model.getStepCounter(), "end.xml");
-    // write__->writeStates();
+    // cuda_model.exportData("end.xml");
+
+#ifdef VISUALISATION
+    visualisation.join();
+#endif
     return 0;
 }
 
