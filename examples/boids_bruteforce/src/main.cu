@@ -17,23 +17,23 @@ inline __host__ __device__ float vec3Length(const float x, const float y, const 
 }
 
 // Method to scale a vector 
-__host__ __device__ void vec3Mult(float *x, float *y, float *z, const float multiplier){
-    *x *= multiplier;
-    *y *= multiplier;
-    *z *= multiplier;
+__host__ __device__ void vec3Mult(float &x, float &y, float &z, const float multiplier){
+    x *= multiplier;
+    y *= multiplier;
+    z *= multiplier;
 }
 
 // Method to scale a vector 
-__host__ __device__ void vec3Div(float *x, float *y, float *z, const float divisor){
-    *x /= divisor;
-    *y /= divisor;
-    *z /= divisor;
+__host__ __device__ void vec3Div(float &x, float &y, float &z, const float divisor){
+    x /= divisor;
+    y /= divisor;
+    z /= divisor;
 }
 
 // Method to normalize a vector of 3 points inplace.
-__host__ __device__ void vec3Normalize(float* x, float* y, float* z) {
+__host__ __device__ void vec3Normalize(float &x, float &y, float &z) {
     // Get the length
-    float length = vec3Length(*x, *y, *z);
+    float length = vec3Length(x, y, z);
     vec3Div(x, y, z, length);
 }
 
@@ -339,7 +339,7 @@ int main(int argc, const char ** argv) {
         const unsigned int AGENT_COUNT = 2048; // @todo move to environment parametr for flexibility.
         // @todo better RNG / seeding. Multiple distributions from multiple seeds (generated from a single, cli-based seed)
         EnvironmentDescription &env = model.Environment();
-        // RNG distributions for iniital agent state.
+        // Uniformly distribute agents within space, with uniformly distributed initial velocity.
         std::default_random_engine rng;
         std::uniform_real_distribution<float> pos_dist(env.get<float>("MIN_POSITION"), env.get<float>("MAX_POSITION"));
         std::uniform_real_distribution<float> velocity_dist(-1, 1);
@@ -359,22 +359,13 @@ int main(int argc, const char ** argv) {
             // Generate a random speed between 0 and the maximum initial speed 
             float fmagnitude = velocity_magnitude(rng);
             // Use the random speed for the velocity.
-            vec3Normalize(&fx, &fy, &fz);
-            vec3Mult(&fx, &fy, &fz, fmagnitude);
+            vec3Normalize(fx, fy, fz);
+            vec3Mult(fx, fy, fz, fmagnitude);
 
             // Set these for the agent.
             instance.setVariable<float>("fx", fx);
             instance.setVariable<float>("fy", fy);
             instance.setVariable<float>("fz", fz);
-            printf(
-                "new boid %d at (%+1.5f, %+1.5f, %+1.5f), with velocity (%+1.5f, %+1.5f, %+1.5f)\n",
-                instance.getVariable<int>("id"),
-                instance.getVariable<float>("x"),
-                instance.getVariable<float>("y"),
-                instance.getVariable<float>("z"),
-                instance.getVariable<float>("fx"),
-                instance.getVariable<float>("fy"),
-                instance.getVariable<float>("fz"));
         }
         cuda_model.setPopulationData(population);
     }
