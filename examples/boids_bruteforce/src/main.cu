@@ -16,6 +16,20 @@ inline __host__ __device__ float vec3Length(const float x, const float y, const 
     return sqrtf(x * x + y * y + z * z);
 }
 
+// Add a scalar to a vector
+__host__ __device__ void vec3Add(float &x, float &y, float &z, const float value){
+    x += value;
+    y += value;
+    z += value;
+}
+
+// Subtract a scalar from a vector
+__host__ __device__ void vec3Sub(float &x, float &y, float &z, const float value){
+    x -= value;
+    y -= value;
+    z -= value;
+}
+
 // Method to scale a vector 
 __host__ __device__ void vec3Mult(float &x, float &y, float &z, const float multiplier){
     x *= multiplier;
@@ -23,7 +37,7 @@ __host__ __device__ void vec3Mult(float &x, float &y, float &z, const float mult
     z *= multiplier;
 }
 
-// Method to scale a vector 
+// Method to divide a vector 
 __host__ __device__ void vec3Div(float &x, float &y, float &z, const float divisor){
     x /= divisor;
     y /= divisor;
@@ -38,10 +52,8 @@ __host__ __device__ void vec3Normalize(float &x, float &y, float &z) {
 }
 
 // Bound the agent to the environment
-// @todo - this is actually wrapping? Should this be claming instead?
+// @todo - this is actually wrapping? Should this be clamping instead?
 __device__ void boundPosition(float &x, float &y, float &z, const float MIN_POSITION, const float MAX_POSITION) {
-    // @todo switch to env vars.
-    // Bound x.
     x = (x < MIN_POSITION)? MAX_POSITION: x;
     x = (x > MAX_POSITION)? MIN_POSITION: x;
 
@@ -137,17 +149,9 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     }
 
     // Divide positions/velocities by relevant counts.
-    perceived_centre_x /= perceived_count;
-    perceived_centre_y /= perceived_count;
-    perceived_centre_z /= perceived_count;
-
-    global_velocity_x /= perceived_count;
-    global_velocity_y /= perceived_count;
-    global_velocity_z /= perceived_count;
-
-    collision_centre_x /= collision_count;
-    collision_centre_y /= collision_count;
-    collision_centre_z /= collision_count;
+    vec3Div(perceived_centre_x, perceived_centre_y, perceived_centre_z, perceived_count);
+    vec3Div(global_velocity_x, global_velocity_y, global_velocity_z, perceived_count);
+    vec3Div(global_velocity_x, global_velocity_y, global_velocity_z, collision_count);
 
     // Total change in velocity
     float velocity_change_x = 0.f;
@@ -197,10 +201,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     velocity_change_z += avoid_velocity_z;
 
     // Global scale of velocity change
-    const float GLOBAL_SCALE = FLAMEGPU->environment.get<float>("GLOBAL_SCALE");
-    velocity_change_x *= GLOBAL_SCALE;
-    velocity_change_y *= GLOBAL_SCALE;
-    velocity_change_z *= GLOBAL_SCALE;
+    vec3Mult(velocity_change_x, velocity_change_y, velocity_change_z, FLAMEGPU->environment.get<float>("GLOBAL_SCALE"));
 
     // Update agent velocity
     agent_fx += velocity_change_x;
@@ -210,9 +211,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     // Bound velocity
     float agent_fscale = vec3Length(agent_fx, agent_fy, agent_fz);
     if (agent_fscale > 1) {
-        agent_fx /= agent_fscale;
-        agent_fy /= agent_fscale;
-        agent_fz /= agent_fscale;
+        vec3Div(agent_fx, agent_fy, agent_fz, agent_fscale);
     }
 
     // Apply the velocity
