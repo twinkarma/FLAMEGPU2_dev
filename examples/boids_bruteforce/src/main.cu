@@ -17,34 +17,34 @@ inline __host__ __device__ float vec3Length(const float x, const float y, const 
 }
 
 // Add a scalar to a vector
-__host__ __device__ void vec3Add(float &x, float &y, float &z, const float value){
+__host__ __device__ void vec3Add(float &x, float &y, float &z, const float value) {
     x += value;
     y += value;
     z += value;
 }
 
 // Subtract a scalar from a vector
-__host__ __device__ void vec3Sub(float &x, float &y, float &z, const float value){
+__host__ __device__ void vec3Sub(float &x, float &y, float &z, const float value) {
     x -= value;
     y -= value;
     z -= value;
 }
 
-// Method to scale a vector 
-__host__ __device__ void vec3Mult(float &x, float &y, float &z, const float multiplier){
+// Method to scale a vector
+__host__ __device__ void vec3Mult(float &x, float &y, float &z, const float multiplier) {
     x *= multiplier;
     y *= multiplier;
     z *= multiplier;
 }
 
-// Method to divide a vector 
-__host__ __device__ void vec3Div(float &x, float &y, float &z, const float divisor){
+// Method to divide a vector
+__host__ __device__ void vec3Div(float &x, float &y, float &z, const float divisor) {
     x /= divisor;
     y /= divisor;
     z /= divisor;
 }
 
-// Method to normalize a vector of 3 points inplace.
+// Method to normalize a vector of 3 points inplace
 __host__ __device__ void vec3Normalize(float &x, float &y, float &z) {
     // Get the length
     float length = vec3Length(x, y, z);
@@ -53,7 +53,7 @@ __host__ __device__ void vec3Normalize(float &x, float &y, float &z) {
 
 // Bound the agent to the environment
 // note that unlike the FLAME GPU 1 implementation this clamps agents rather than wrapping.
-//@todo should this also modify the force of the agent?
+// @todo should this also modify the force of the agent?
 __device__ void clampPosition(float &x, float &y, float &z, const float MIN_POSITION, const float MAX_POSITION) {
     x = (x < MIN_POSITION)? MIN_POSITION: x;
     x = (x > MAX_POSITION)? MAX_POSITION: x;
@@ -63,7 +63,6 @@ __device__ void clampPosition(float &x, float &y, float &z, const float MIN_POSI
 
     z = (z < MIN_POSITION)? MIN_POSITION: z;
     z = (z > MAX_POSITION)? MAX_POSITION: z;
-
 }
 
 
@@ -337,7 +336,7 @@ int main(int argc, const char ** argv) {
     // @todo - this doesn't deal with if xml is passed just containing parameters!
     if (cuda_model.getSimulationConfig().xml_input_file.empty()) {
         // Initial population size if not loaded from xml.
-        const unsigned int AGENT_COUNT = 2048; // @todo move to environment parametr for flexibility.
+        const unsigned int AGENT_COUNT = 2048;  // @todo move to environment parametr for flexibility.
         // @todo better RNG / seeding. Multiple distributions from multiple seeds (generated from a single, cli-based seed)
         EnvironmentDescription &env = model.Environment();
         // Uniformly distribute agents within space, with uniformly distributed initial velocity.
@@ -352,12 +351,12 @@ int main(int argc, const char ** argv) {
             instance.setVariable<float>("x", pos_dist(rng));
             instance.setVariable<float>("y", pos_dist(rng));
             instance.setVariable<float>("z", pos_dist(rng));
-            
+
             // Generate a random velocity direction
             float fx = velocity_dist(rng);
             float fy = velocity_dist(rng);
             float fz = velocity_dist(rng);
-            // Generate a random speed between 0 and the maximum initial speed 
+            // Generate a random speed between 0 and the maximum initial speed
             float fmagnitude = velocity_magnitude(rng);
             // Use the random speed for the velocity.
             vec3Normalize(fx, fy, fz);
