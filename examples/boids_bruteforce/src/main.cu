@@ -52,16 +52,18 @@ __host__ __device__ void vec3Normalize(float &x, float &y, float &z) {
 }
 
 // Bound the agent to the environment
-// @todo - this is actually wrapping? Should this be clamping instead?
-__device__ void boundPosition(float &x, float &y, float &z, const float MIN_POSITION, const float MAX_POSITION) {
-    x = (x < MIN_POSITION)? MAX_POSITION: x;
-    x = (x > MAX_POSITION)? MIN_POSITION: x;
+// note that unlike the FLAME GPU 1 implementation this clamps agents rather than wrapping.
+//@todo should this also modify the force of the agent?
+__device__ void clampPosition(float &x, float &y, float &z, const float MIN_POSITION, const float MAX_POSITION) {
+    x = (x < MIN_POSITION)? MIN_POSITION: x;
+    x = (x > MAX_POSITION)? MAX_POSITION: x;
 
-    y = (y < MIN_POSITION)? MAX_POSITION: y;
-    y = (y > MAX_POSITION)? MIN_POSITION: y;
+    y = (y < MIN_POSITION)? MIN_POSITION: y;
+    y = (y > MAX_POSITION)? MAX_POSITION: y;
 
-    z = (z < MIN_POSITION)? MAX_POSITION: z;
-    z = (z > MAX_POSITION)? MIN_POSITION: z;
+    z = (z < MIN_POSITION)? MIN_POSITION: z;
+    z = (z > MAX_POSITION)? MAX_POSITION: z;
+
 }
 
 
@@ -221,7 +223,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     agent_z += agent_fz * TIME_SCALE;
 
     // Bound position
-    boundPosition(agent_x, agent_y, agent_z, FLAMEGPU->environment.get<float>("MIN_POSITION"), FLAMEGPU->environment.get<float>("MAX_POSITION"));
+    clampPosition(agent_x, agent_y, agent_z, FLAMEGPU->environment.get<float>("MIN_POSITION"), FLAMEGPU->environment.get<float>("MAX_POSITION"));
 
     // Update global agent memory.
     FLAMEGPU->setVariable<float>("x", agent_x);
