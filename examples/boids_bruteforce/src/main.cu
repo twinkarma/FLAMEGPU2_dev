@@ -12,8 +12,29 @@
 
 // @todo - need to abstract __device__ away from the modeller.
 // Get the length of a vector
-inline __device__ float length(const float x, const float y, const float z) {
+inline __host__ __device__ float vec3Length(const float x, const float y, const float z) {
     return sqrtf(x * x + y * y + z * z);
+}
+
+// Method to scale a vector 
+__host__ __device__ void vec3Mult(float *x, float *y, float *z, const float multiplier){
+    *x *= multiplier;
+    *y *= multiplier;
+    *z *= multiplier;
+}
+
+// Method to scale a vector 
+__host__ __device__ void vec3Div(float *x, float *y, float *z, const float divisor){
+    *x /= divisor;
+    *y /= divisor;
+    *z /= divisor;
+}
+
+// Method to normalize a vector of 3 points inplace.
+__host__ __device__ void vec3Normalize(float* x, float* y, float* z) {
+    // Get the length
+    float length = vec3Length(*x, *y, *z);
+    vec3Div(x, y, z, length);
 }
 
 // Bound the agent to the environment
@@ -30,6 +51,7 @@ __device__ void boundPosition(float &x, float &y, float &z, const float MIN_POSI
     z = (z < MIN_POSITION)? MAX_POSITION: z;
     z = (z > MAX_POSITION)? MIN_POSITION: z;
 }
+
 
 
 // Agent function to output the message
@@ -89,7 +111,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
             const float message_fz = message.getVariable<float>("fz");
 
             // Check interaction radius
-            float separation = length(agent_x - message_x, agent_y - message_y, agent_z - message_z);
+            float separation = vec3Length(agent_x - message_x, agent_y - message_y, agent_z - message_z);
 
             if (separation < (INTERACTION_RADIUS)) {
                 // Update the percieved centre
@@ -186,7 +208,7 @@ FLAMEGPU_AGENT_FUNCTION(inputdata, MsgBruteForce, MsgNone) {
     agent_fz += velocity_change_z;
 
     // Bound velocity
-    float agent_fscale = length(agent_fx, agent_fy, agent_fz);
+    float agent_fscale = vec3Length(agent_fx, agent_fy, agent_fz);
     if (agent_fscale > 1) {
         agent_fx /= agent_fscale;
         agent_fy /= agent_fscale;
@@ -252,6 +274,10 @@ int main(int argc, const char ** argv) {
         env.add("MIN_POSITION", -0.5f);
         env.add("MAX_POSITION", +0.5f);
 
+        // Initialisation parameter(s)
+        env.add("MAX_INITIAL_SPEED", 1.0f);
+        env.add("MIN_INITIAL_SPEED", 0.01f);
+
         // Interaction radius
         env.add("INTERACTION_RADIUS", 0.1f);
         env.add("SEPARATION_RADIUS", 0.005f);
@@ -303,20 +329,21 @@ int main(int argc, const char ** argv) {
     visualisation.activate();
 #endif
 
-    /**
-     * Initialisation
-     */
+    // Initialisation
     cuda_model.initialise(argc, argv);
 
     // If no xml model file was is provided, generate a population.
+    // @todo - this doesn't deal with if xml is passed just containing parameters!
     if (cuda_model.getSimulationConfig().xml_input_file.empty()) {
-        // Currently population has not been init, so generate an agent population on the fly
-        const unsigned int AGENT_COUNT = 2048;
+        // Initial population size if not loaded from xml.
+        const unsigned int AGENT_COUNT = 2048; // @todo move to environment parametr for flexibility.
         // @todo better RNG / seeding. Multiple distributions from multiple seeds (generated from a single, cli-based seed)
-        std::default_random_engine rng;
         EnvironmentDescription &env = model.Environment();
+        // RNG distributions for iniital agent state.
+        std::default_random_engine rng;
         std::uniform_real_distribution<float> pos_dist(env.get<float>("MIN_POSITION"), env.get<float>("MAX_POSITION"));
         std::uniform_real_distribution<float> velocity_dist(-1, 1);
+        std::uniform_real_distribution<float> velocity_magnitude(env.get<float>("MIN_INITIAL_SPEED"), env.get<float>("MAX_INITIAL_SPEED"));
         AgentPopulation population(model.Agent("Boid"), AGENT_COUNT);
         for (unsigned int i = 0; i < AGENT_COUNT; i++) {
             AgentInstance instance = population.getNextInstance();
@@ -324,11 +351,22 @@ int main(int argc, const char ** argv) {
             instance.setVariable<float>("x", pos_dist(rng));
             instance.setVariable<float>("y", pos_dist(rng));
             instance.setVariable<float>("z", pos_dist(rng));
-            // @todo - normalise the velocity?
-            instance.setVariable<float>("fx", velocity_dist(rng));
-            instance.setVariable<float>("fy", velocity_dist(rng));
-            instance.setVariable<float>("fz", velocity_dist(rng));
-            /* printf(
+            
+            // Generate a random velocity direction
+            float fx = velocity_dist(rng);
+            float fy = velocity_dist(rng);
+            float fz = velocity_dist(rng);
+            // Generate a random speed between 0 and the maximum initial speed 
+            float fmagnitude = velocity_magnitude(rng);
+            // Use the random speed for the velocity.
+            vec3Normalize(&fx, &fy, &fz);
+            vec3Mult(&fx, &fy, &fz, fmagnitude);
+
+            // Set these for the agent.
+            instance.setVariable<float>("fx", fx);
+            instance.setVariable<float>("fy", fy);
+            instance.setVariable<float>("fz", fz);
+            printf(
                 "new boid %d at (%+1.5f, %+1.5f, %+1.5f), with velocity (%+1.5f, %+1.5f, %+1.5f)\n",
                 instance.getVariable<int>("id"),
                 instance.getVariable<float>("x"),
@@ -336,7 +374,7 @@ int main(int argc, const char ** argv) {
                 instance.getVariable<float>("z"),
                 instance.getVariable<float>("fx"),
                 instance.getVariable<float>("fy"),
-                instance.getVariable<float>("fz")); */
+                instance.getVariable<float>("fz"));
         }
         cuda_model.setPopulationData(population);
     }
