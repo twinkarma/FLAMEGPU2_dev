@@ -121,17 +121,24 @@ The visualisation codebase can be found at [this location](https://github.com/FL
 
 ##### Testing
 
-The test suite can be built from the root directory using `-DBUILD_TESTS=ON`:
+Tests can be enabled via `-DBUILD_TESTS=ON`:
 
 ```
 mkdir -p build && cd build
 cmake .. -DBUILD_TESTS=ON
-make -j8
+make -j4
 ```
 
-The first time CMake is configured with `-DBUILD_TESTS=ON` an internet connection is required, as [GoogleTest](https://github.com/google/googletest) is downloaded and built. 
+[CTest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) is used to orchestrate running multiple test suites for different aspects of FLAME GPU 2 (i.e. the CUDA/C++ Unit test suite, and python tests if enabled).
+
+Test can be executed using `ctest`, or `ctest -VV` for verbose output of sub-tests.
+
+The unit test suite (`tests`) which uses [GoogleTest](https://github.com/google/googletest). 
+The first time CMake is configured with `-DBUILD_TESTS=ON` an internet connection is required, as GoogleTest is downloaded and built. 
 Subsequent reconfigures will attempt to update this copy, but will continue if updating fails.
 Automatic updating of GoogleTest can be disabled by passing `-DBUILD_TESTS=OFF`.
+
+More thorough integration between ctest and GoogleTest can be enabled by `-DUSE_GTEST_DISCOVER=ON`, however this will result in a much longer time being required to execute the unit tests due to CUDA context initialisation. This is not recommended.
 
 *Known Issues:* The tests do not build under the combination of Visual Studio 2015 and CUDA 9.0 or 9.1. Use CUDA 9.2 or newer if you require the tests.
 

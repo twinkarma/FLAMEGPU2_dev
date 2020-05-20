@@ -3,8 +3,8 @@
 cmake_minimum_required(VERSION VERSION 3.12 FATAL_ERROR)
 
 # Tests require GTest
-#enable_testing()
 
+# @todo - make it so that system installed Gtest is used if present (and sufficienlty high version?)
 # START Download & Build GoogleTest
 MACRO (download_gtest)
     configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
@@ -168,6 +168,24 @@ set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"  PROPERTY VS_STARTUP_PROJEC
 set_target_properties("${PROJECT_NAME}" PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
                                                    VS_DEBUGGER_COMMAND_ARGUMENTS "$<$<CONFIG:Debug>:--gtest_catch_exceptions=0>")
 
+
+# Add the tests
+if(USE_GTEST_DISCOVER)
+    # If GTEST_DISCOVER is enabled, add the unit test executable using it. This results in very long test exeuction times due to CUDA.
+    gtest_discover_tests(
+        "${PROJECT_NAME}"
+        WORKING_DIRECTORY ${PROJECT_DIR}
+    )
+else()
+    # Otherwise add the whole test suite as a single test.
+    # Use Cmake -VV to view output from individual tests in this case.
+    add_test(
+        NAME ${PROJECT_NAME} 
+        COMMAND "${PROJECT_NAME}"
+        WORKING_DIRECTORY ${PROJECT_DIR}
+    )
+endif()
+
 option(TEST_DEV_MODE "Create a mini project for fast building of tests during development" OFF)
 if(TEST_DEV_MODE)
     # DEVELOPMENT TESTING THING (Compact repeated version of above)
@@ -195,4 +213,21 @@ if(TEST_DEV_MODE)
     # Set the default (visual studio) debugger configure_file
     set_target_properties("${PROJECT_NAME}" PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
                                                        VS_DEBUGGER_COMMAND_ARGUMENTS "$<$<CONFIG:Debug>:--gtest_catch_exceptions=0>")
+
+    # Add the tests
+    if(USE_GTEST_DISCOVER)
+        # If GTEST_DISCOVER is enabled, add the unit test executable using it. This results in very long test exeuction times due to CUDA.
+        gtest_discover_tests(
+            tests_dev
+            WORKING_DIRECTORY ${PROJECT_DIR}
+        )
+    else()
+        # Otherwise add the whole test suite as a single test.
+        # Use Cmake -VV to view output from individual tests in this case.
+        add_test(
+            NAME tests_dev 
+            COMMAND "${PROJECT_NAME}"
+            WORKING_DIRECTORY ${PROJECT_DIR}
+        )
+    endif()
 endif()
