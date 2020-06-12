@@ -46,6 +46,7 @@ option(BUILD_EXAMPLE_GAME_OF_LIFE "Enable building examples/game_of_life" OFF)
 option(BUILD_EXAMPLE_CIRCLES_BRUTE_FORCE "Enable building examples/circles_brute_force" OFF)
 option(BUILD_EXAMPLE_CIRCLES_SPATIAL_3D "Enable building examples/circles_spatial_3d" OFF)
 option(BUILD_EXAMPLE_RTC_EXAMPLE "Enable building examples/rtc_example" OFF)
+option(BUILD_EXAMPLE_STABLE_MATCHING "Enable building examples/stable_matching" OFF)
 
 # Option to enable/disable building the static library
 option(VISUALISATION "Enable visualisation support" OFF)
@@ -114,6 +115,10 @@ endif()
 
 if(BUILD_ALL_EXAMPLES OR BUILD_EXAMPLE_CIRCLES_SPATIAL_3D)
     add_subdirectory(examples/circles_spatial3D)
+endif()
+
+if(BUILD_ALL_EXAMPLES OR BUILD_EXAMPLE_STABLE_MATCHING)
+    add_subdirectory(examples/stable_matching)
 endif()
 
 # Add the tests directory (if required)
