@@ -27,10 +27,10 @@ std::shared_ptr<ModelData> ModelData::clone() const {
 
 ModelData::ModelData(const ModelData &other)
     : initFunctions(other.initFunctions)
-    , stepFunctions(other.stepFunctions)
-    , exitFunctions(other.exitFunctions)
     , initFunctionCallbacks(other.initFunctionCallbacks)
+    , stepFunctions(other.stepFunctions)
     , stepFunctionCallbacks(other.stepFunctionCallbacks)
+    , exitFunctions(other.exitFunctions)
     , exitFunctionCallbacks(other.exitFunctionCallbacks)
     , exitConditions(other.exitConditions)
     , environment(new EnvironmentDescription(*other.environment))
