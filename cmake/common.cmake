@@ -2,6 +2,8 @@ message(STATUS "-----Configuring Project: ${PROJECT_NAME}-----")
 # Add custom modules directory
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/modules/ ${CMAKE_MODULE_PATH})
 
+include(${CMAKE_CURRENT_LIST_DIR}/externals.cmake)
+
 # Common rules for other cmake files
 # Make available lowercase 'linux'/'windows' vars (used for build dirs)
 STRING(TOLOWER "${CMAKE_SYSTEM_NAME}" CMAKE_SYSTEM_NAME_LOWER)
@@ -103,6 +105,12 @@ if(NVTX)
         SET(NVTX "OFF")    
     endif()
 endif(NVTX)
+        
+        
+# If jitify was found, add it to the include dirs.
+if(Jitify_FOUND)
+    set(FLAMEGPU_DEPENDENCY_INCLUDE_DIRECTORIES ${FLAMEGPU_DEPENDENCY_INCLUDE_DIRECTORIES} ${Jitify_INCLUDE_DIRS})
+endif()
 
 # Logging for jitify compilation
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -DJITIFY_PRINT_LOG")
@@ -325,13 +333,8 @@ function(add_flamegpu_executable NAME SRC FLAMEGPU_ROOT PROJECT_ROOT IS_EXAMPLE)
 
     # Define which source files are required for the target executable
     add_executable(${NAME} ${SRC})
-    
-    # Add include directories
-    target_include_directories(${NAME} ${INCLUDE_SYSTEM_FLAG} PRIVATE ${FLAMEGPU_ROOT}/externals)
-    # Add the cuda include directory as a system include to allow user-provided thrust. ../include trickery for cmake >= 3.12
-    target_include_directories(${NAME} ${INCLUDE_SYSTEM_FLAG} PRIVATE "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/../include")    
-    target_include_directories(${NAME} ${INCLUDE_SYSTEM_FLAG} PRIVATE ${FLAMEGPU_DEPENDENCY_INCLUDE_DIRECTORIES})
-    target_include_directories(${NAME} PRIVATE ${FLAMEGPU_ROOT}/include)
+
+    # @todo - Once public/private/interface is perfected on the library, some includes may need adding back here.
 
     # Add extra linker targets
     target_link_libraries(${NAME} ${FLAMEGPU_DEPENDENCY_LINK_LIBRARIES})
@@ -424,12 +427,32 @@ function(add_flamegpu_library NAME SRC FLAMEGPU_ROOT)
     # Enable RDC
     set_property(TARGET ${NAME}  PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
+    # @todo - These should not all be public, however making them public enables forwarding through to executables, and avoids having to repeat horrible workarounds.
+    # Only /include should be public ideally, the rest should be private. Not sure how interface would fit in.
+    # jitify and tinyxml do currnelty have to be public, as they are mentioned in other public headers (/include)
+
     # Define include dirs
-    target_include_directories(${NAME} ${INCLUDE_SYSTEM_FLAG} PRIVATE ${FLAMEGPU_ROOT}/externals)
-    # Add the cuda include directory as a system include to allow user-provided thrust. ../include trickerty for cmake >= 3.12
-    target_include_directories(${NAME}  ${INCLUDE_SYSTEM_FLAG} PRIVATE "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/../include")
-    target_include_directories(${NAME}  ${INCLUDE_SYSTEM_FLAG} PRIVATE ${FLAMEGPU_DEPENDENCY_INCLUDE_DIRECTORIES})
-    target_include_directories(${NAME}  PRIVATE ${FLAMEGPU_ROOT}/include)
+    target_include_directories(${NAME} ${INCLUDE_SYSTEM_FLAG} PUBLIC ${FLAMEGPU_ROOT}/externals)
+    # @todo - this cmake config explicitly doesn't use -isystem, so that it gets used instead of the version which ships with CUDA (i.e. undoes our previous workaround.)
+    # CUB (and thrust) cause many compiler warnings due to initialisation order.
+    # -isystem can be used to hide warnings from system headers, but nvcc always searches it's local paths before system headers, so uses it's own version of cub.
+    # CUB's cmake config has a workaround to prevent imported targets (CUB::CUB) using -isystem, but that means it shows warnings.
+    # Instead, we want it to use -isystem, but *also* pass the main cuda toolkit include dir as -isystem afterwards, to get the correct ordering to happen (cmake  >= 3.12)
+    target_link_libraries(${NAME} Thrust::Thrust)
+    if(DEFINED _CUB_INCLUDE_DIR)
+        target_include_directories(${NAME} ${INCLUDE_SYSTEM_FLAG} PUBLIC ${_CUB_INCLUDE_DIR})
+    else()
+        # If the value isn't set, use CUB:CUB rather than the workaroun
+        target_link_libraries(${NAME} CUB::CUB)
+    endif()
+    # Then add the cuda toolkit to isystem (again)
+    target_include_directories(${NAME}  ${INCLUDE_SYSTEM_FLAG} PUBLIC "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/../include")
+
+    # Add extra includes (jitify, nvtx, nvrtc etc.)
+    target_include_directories(${NAME}  ${INCLUDE_SYSTEM_FLAG} PUBLIC ${FLAMEGPU_DEPENDENCY_INCLUDE_DIRECTORIES})
+    # Add the library headers as public so they are forwarded on.
+    target_include_directories(${NAME}  PUBLIC ${FLAMEGPU_ROOT}/include)
+    # Add any private headers.
     target_include_directories(${NAME}  PRIVATE ${FLAMEGPU_ROOT}/src) #private headers
 
     # Add extra linker targets
