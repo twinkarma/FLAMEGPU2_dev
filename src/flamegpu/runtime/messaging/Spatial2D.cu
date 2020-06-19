@@ -5,7 +5,8 @@
 #include "flamegpu/gpu/CUDAScatter.h"
 #include "flamegpu/util/nvtx.h"
 #ifdef _MSC_VER
-#pragma warning(push, 3)
+#pragma warning(push, 0)
+#pragma warning(disable : 4706)
 #include <cub/cub.cuh>
 #pragma warning(pop)
 #else

@@ -27,8 +27,7 @@ include(${FLAMEGPU_ROOT}/cmake/common.cmake)
 include(${FLAMEGPU_ROOT}/cmake/doxygen.cmake)
 
 if(VISUALISATION)
-  include(${FLAMEGPU_ROOT}/cmake/visualiser/download.cmake)
-  download_visualiser()
+  include(${FLAMEGPU_ROOT}/cmake/flamegpu2_visualiser.cmake)
 endif()
 
 # Define output location of static library
@@ -55,9 +54,6 @@ endif()
 
 # Specify source files for the static library
 # Can't do this automatically, as CMake wouldn't know when to regen (as CMakeLists.txt would be unchanged)
-SET(SRC_EXTERNALS
-    ${FLAMEGPU_ROOT}/externals/tinyxml2/tinyxml2.cpp
-)
 SET(SRC_INCLUDE
     ${FLAMEGPU_ROOT}/include/flamegpu/io/statereader.h
     ${FLAMEGPU_ROOT}/include/flamegpu/io/statewriter.h
@@ -179,13 +175,11 @@ if (VISUALISATION)
     )
 endif()
 SET(ALL_SRC
-    ${SRC_EXTERNALS}
     ${SRC_INCLUDE}
     ${SRC_FLAMEGPU2}
 )
 
 # Setup Visual Studio (and eclipse) filters
-source_group(TREE ${FLAMEGPU_ROOT} FILES ${SRC_EXTERNALS})
 source_group(TREE ${FLAMEGPU_ROOT}/include/flamegpu PREFIX include FILES ${SRC_INCLUDE})
 set(T_SRC "${SRC_FLAMEGPU2}")
 list(FILTER T_SRC INCLUDE REGEX ".*\.(h|hpp|cuh)$")

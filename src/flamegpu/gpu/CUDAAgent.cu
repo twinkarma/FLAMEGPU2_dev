@@ -24,8 +24,11 @@
 #include "flamegpu/gpu/CUDAScatter.h"
 
 #ifdef _MSC_VER
-#pragma warning(push, 3)
+#pragma warning(push, 0)
+#pragma warning(disable : 4706)
+// #pragma diag_suppress = 1719  // Doesn't work at suppressing wreorder
 #include <cub/cub.cuh>
+// #pragma diag_default = 1719
 #pragma warning(pop)
 #else
 #include <cub/cub.cuh>

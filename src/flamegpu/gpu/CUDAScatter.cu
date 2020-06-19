@@ -9,7 +9,8 @@
 #include "flamegpu/runtime/flamegpu_host_new_agent_api.h"
 
 #ifdef _MSC_VER
-#pragma warning(push, 3)
+#pragma warning(push, 0)
+#pragma warning(disable : 4706)
 #include <cub/cub.cuh>
 #pragma warning(pop)
 #else

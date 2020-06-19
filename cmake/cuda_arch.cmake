@@ -94,3 +94,9 @@ if(NOT CUDA_ARCH_LENGTH EQUAL 0)
 else()
     message(STATUS "Using default CUDA Compute Capabilities ${CUDA_ARCH}")
 endif()
+
+# Supress deprecated architecture warnings, as they are not fitered out by checking against nvcc help.
+# Ideally a warning would be output once at config time (i.e. above) and not at every file compilation.
+# But this is challenging due to multiline string detection.
+# Could potentially compile a simple program, without this flag to detect if its valid/deprecated? Would likely increase build time.
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-deprecated-gpu-targets")

@@ -1,10 +1,11 @@
 #ifndef INCLUDE_FLAMEGPU_RUNTIME_FLAMEGPU_HOST_AGENT_API_H_
 #define INCLUDE_FLAMEGPU_RUNTIME_FLAMEGPU_HOST_AGENT_API_H_
 #ifdef _MSC_VER
-#pragma warning(push, 3)
+#pragma warning(push, 0)
+#pragma warning(disable : 4706)
 #include <cub/cub.cuh>
 #pragma warning(pop)
-#pragma warning(push, 2)
+#pragma warning(push, 0)
 #include <thrust/count.h>
 #include <thrust/device_ptr.h>
 #pragma warning(pop)
