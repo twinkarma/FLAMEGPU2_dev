@@ -406,7 +406,7 @@ int main(int argc, const char ** argv) {
                         unsigned int t = 100 + hs_level;
                         env_sugar_lvl = t > env_sugar_lvl ? t : env_sugar_lvl;
                     } else if (hs_dist <= hs_rad) {
-                        unsigned int t = 100 + (hs_dist-hotspot_core_size)/(hs_rad-hotspot_core_size) * hs_level;
+                        unsigned int t = 100 + static_cast<unsigned int>((hs_dist-hotspot_core_size)/(hs_rad-hotspot_core_size) * hs_level);
                         env_sugar_lvl = t > env_sugar_lvl ? t : env_sugar_lvl;
                     }
                 }
