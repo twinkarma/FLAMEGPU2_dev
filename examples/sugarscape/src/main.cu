@@ -14,10 +14,10 @@
 #define GRID_HEIGHT 256
 
 // Agent state variables
-#define AGENT_STATE_UNOCCUPIED 0
-#define AGENT_STATE_OCCUPIED 1
-#define AGENT_STATE_MOVEMENT_REQUESTED 2
-#define AGENT_STATE_MOVEMENT_UNRESOLVED 3
+#define AGENT_STATUS_UNOCCUPIED 0
+#define AGENT_STATUS_OCCUPIED 1
+#define AGENT_STATUS_MOVEMENT_REQUESTED 2
+#define AGENT_STATUS_MOVEMENT_UNRESOLVED 3
 
 
 // Growback variables
@@ -27,9 +27,9 @@
 FLAMEGPU_AGENT_FUNCTION(metabolise_and_growback, MsgNone, MsgNone) {
     int sugar_level = FLAMEGPU->getVariable<int>("sugar_level");
     int env_sugar_level = FLAMEGPU->getVariable<int>("env_sugar_level");
-    int state = FLAMEGPU->getVariable<int>("state");
+    int state = FLAMEGPU->getVariable<int>("status");
     // metabolise if occupied
-    if (state == AGENT_STATE_OCCUPIED) {
+    if (state == AGENT_STATUS_OCCUPIED) {
         // store sugar
         sugar_level += env_sugar_level;
         env_sugar_level = 0;
@@ -39,7 +39,7 @@ FLAMEGPU_AGENT_FUNCTION(metabolise_and_growback, MsgNone, MsgNone) {
 
         // check if agent dies
         if (sugar_level == 0) {
-            state = AGENT_STATE_UNOCCUPIED;
+            state = AGENT_STATUS_UNOCCUPIED;
             FLAMEGPU->setVariable<int>("agent_id", -1);
             sugar_level = 0;
             FLAMEGPU->setVariable<int>("metabolism", 0);
@@ -47,26 +47,26 @@ FLAMEGPU_AGENT_FUNCTION(metabolise_and_growback, MsgNone, MsgNone) {
     }
 
     // growback if unoccupied
-    if (state == AGENT_STATE_UNOCCUPIED) {
+    if (state == AGENT_STATUS_UNOCCUPIED) {
         if (env_sugar_level < SUGAR_MAX_CAPACITY) {
             env_sugar_level += SUGAR_GROWBACK_RATE;
         }
     }
 
     // set all active agents to unresolved as they may now want to move
-    if (state == AGENT_STATE_OCCUPIED) {
-        state = AGENT_STATE_MOVEMENT_UNRESOLVED;
+    if (state == AGENT_STATUS_OCCUPIED) {
+        state = AGENT_STATUS_MOVEMENT_UNRESOLVED;
     }
     FLAMEGPU->setVariable<int>("sugar_level", sugar_level);
     FLAMEGPU->setVariable<int>("env_sugar_level", env_sugar_level);
-    FLAMEGPU->setVariable<int>("state", state);
+    FLAMEGPU->setVariable<int>("status", state);
     return ALIVE;
 }
-FLAMEGPU_AGENT_FUNCTION(output_cell_state, MsgNone, MsgArray2D) {
+FLAMEGPU_AGENT_FUNCTION(output_cell_status, MsgNone, MsgArray2D) {
     unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
     unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
     FLAMEGPU->message_out.setVariable("location_id", FLAMEGPU->getVariable<int>("location_id"));
-    FLAMEGPU->message_out.setVariable("state", FLAMEGPU->getVariable<int>("state"));
+    FLAMEGPU->message_out.setVariable("status", FLAMEGPU->getVariable<int>("status"));
     FLAMEGPU->message_out.setVariable("env_sugar_level", FLAMEGPU->getVariable<int>("env_sugar_level"));
     FLAMEGPU->message_out.setIndex(agent_x, agent_y);
     return ALIVE;
@@ -76,14 +76,14 @@ FLAMEGPU_AGENT_FUNCTION(movement_request, MsgArray2D, MsgArray2D) {
     int best_location_id = -1;
 
     // find the best location to move to
-    int state = FLAMEGPU->getVariable<int>("state");
+    int status = FLAMEGPU->getVariable<int>("status");
     unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
     unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
     for (auto current_message : FLAMEGPU->message_in(agent_x, agent_y)) {
         // if occupied then look for empty cells
-        if (state == AGENT_STATE_MOVEMENT_UNRESOLVED) {
+        if (status == AGENT_STATUS_MOVEMENT_UNRESOLVED) {
             // if location is unoccupied then check for empty locations
-            if (current_message.getVariable<int>("state") == AGENT_STATE_UNOCCUPIED) {
+            if (current_message.getVariable<int>("status") == AGENT_STATUS_UNOCCUPIED) {
                 // if the sugar level at current location is better than currently stored then update
                 if (current_message.getVariable<int>("env_sugar_level") > best_sugar_level) {
                     best_sugar_level = current_message.getVariable<int>("env_sugar_level");
@@ -94,10 +94,10 @@ FLAMEGPU_AGENT_FUNCTION(movement_request, MsgArray2D, MsgArray2D) {
     }
 
     // if the agent has found a better location to move to then update its state
-    if ((state == AGENT_STATE_MOVEMENT_UNRESOLVED)) {
+    if ((status == AGENT_STATUS_MOVEMENT_UNRESOLVED)) {
         // if there is a better location to move to then state indicates a movement request
-        state = best_location_id > 0 ? AGENT_STATE_MOVEMENT_REQUESTED : AGENT_STATE_OCCUPIED;
-        FLAMEGPU->setVariable<int>("state", state);
+        status = best_location_id > 0 ? AGENT_STATUS_MOVEMENT_REQUESTED : AGENT_STATUS_OCCUPIED;
+        FLAMEGPU->setVariable<int>("status", status);
     }
 
     // add a movement request
@@ -115,14 +115,14 @@ FLAMEGPU_AGENT_FUNCTION(movement_response, MsgArray2D, MsgArray2D) {
     int best_request_sugar_level = -1;
     int best_request_metabolism = -1;
 
-    int state = FLAMEGPU->getVariable<int>("state");
+    int status = FLAMEGPU->getVariable<int>("status");
     int location_id = FLAMEGPU->getVariable<int>("location_id");
     unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
     unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
 
     for (auto current_message : FLAMEGPU->message_in(agent_x, agent_y)) {
         // if the location is unoccupied then check for agents requesting to move here
-        if (state == AGENT_STATE_UNOCCUPIED) {
+        if (status == AGENT_STATUS_UNOCCUPIED) {
             // check if request is to move to this location
             if (current_message.getVariable<int>("location_id") == location_id) {
                 // check the priority and maintain the best ranked agent
@@ -136,8 +136,8 @@ FLAMEGPU_AGENT_FUNCTION(movement_response, MsgArray2D, MsgArray2D) {
     }
 
     // if the location is unoccupied and an agent wants to move here then do so and send a response
-    if ((state == AGENT_STATE_UNOCCUPIED) && (best_request_id > 0))    {
-        FLAMEGPU->setVariable<int>("state", AGENT_STATE_OCCUPIED);
+    if ((status == AGENT_STATUS_UNOCCUPIED) && (best_request_id > 0))    {
+        FLAMEGPU->setVariable<int>("status", AGENT_STATUS_OCCUPIED);
         // move the agent to here
         FLAMEGPU->setVariable<int>("agent_id", best_request_id);
         FLAMEGPU->setVariable<int>("sugar_level", best_request_sugar_level);
@@ -152,17 +152,17 @@ FLAMEGPU_AGENT_FUNCTION(movement_response, MsgArray2D, MsgArray2D) {
     return ALIVE;
 }
 FLAMEGPU_AGENT_FUNCTION(movement_transaction, MsgArray2D, MsgNone) {
-    int state = FLAMEGPU->getVariable<int>("state");
+    int status = FLAMEGPU->getVariable<int>("status");
     int agent_id = FLAMEGPU->getVariable<int>("agent_id");
     unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
     unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
 
     for (auto current_message : FLAMEGPU->message_in(agent_x, agent_y)) {
         // if location contains an agent wanting to move then look for responses allowing relocation
-        if (state == AGENT_STATE_MOVEMENT_REQUESTED) {  // if the movement response request came from this location
+        if (status == AGENT_STATUS_MOVEMENT_REQUESTED) {  // if the movement response request came from this location
             if (current_message.getVariable<int>("agent_id") == agent_id) {
                 // remove the agent and reset agent specific variables as it has now moved
-                FLAMEGPU->setVariable<int>("state", AGENT_STATE_UNOCCUPIED);
+                FLAMEGPU->setVariable<int>("status", AGENT_STATUS_UNOCCUPIED);
                 FLAMEGPU->setVariable<int>("agent_id", -1);
                 FLAMEGPU->setVariable<int>("sugar_level", 0);
                 FLAMEGPU->setVariable<int>("metabolism", 0);
@@ -171,73 +171,147 @@ FLAMEGPU_AGENT_FUNCTION(movement_transaction, MsgArray2D, MsgNone) {
     }
 
     // if request has not been responded to then agent is unresolved
-    if (state == AGENT_STATE_MOVEMENT_REQUESTED) {
-        FLAMEGPU->setVariable<int>("state", AGENT_STATE_MOVEMENT_UNRESOLVED);
+    if (status == AGENT_STATUS_MOVEMENT_REQUESTED) {
+        FLAMEGPU->setVariable<int>("status", AGENT_STATUS_MOVEMENT_UNRESOLVED);
     }
 
     return ALIVE;
 }
+FLAMEGPU_EXIT_CONDITION(MovementExitCondition) {
+    static unsigned int iterations = 0;
+    iterations++;
+
+    // Max iterations 9
+    if (iterations < 9) {
+        // Agent movements still unresolved
+        if (FLAMEGPU->agent("agent").count("status", AGENT_STATUS_MOVEMENT_UNRESOLVED)) {
+            return CONTINUE;
+        }
+    }
+
+    iterations = 0;
+    return EXIT;
+}
+/**
+ * Construct the common components of agent shared between both parent and submodel
+ */
+AgentDescription &makeCoreAgent(ModelDescription &model) {
+    AgentDescription &agent = model.newAgent("agent");
+    agent.newVariable<unsigned int, 2>("pos");
+    agent.newVariable<int>("location_id");
+    agent.newVariable<int>("agent_id");
+    agent.newVariable<int>("status");
+    // agent specific variables
+    agent.newVariable<int>("sugar_level");
+    agent.newVariable<int>("metabolism");
+    // environment specific var
+    agent.newVariable<int>("env_sugar_level");
+    return agent;
+}
 int main(int argc, const char ** argv) {
     NVTX_RANGE("main");
     NVTX_PUSH("ModelDescription");
+    ModelDescription submodel("Movement_model");
+    {  // Define sub model for conflict resolution
+        /**
+         * Messages
+         */
+        {   // cell_status message
+            MsgArray2D::Description &message = submodel.newMessage<MsgArray2D>("cell_status");
+            message.newVariable<int>("location_id");
+            message.newVariable<int>("status");
+            message.newVariable<int>("env_sugar_level");
+            message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
+        }
+        {   // movement_request message
+            MsgArray2D::Description &message = submodel.newMessage<MsgArray2D>("movement_request");
+            message.newVariable<int>("agent_id");
+            message.newVariable<int>("location_id");
+            message.newVariable<int>("sugar_level");
+            message.newVariable<int>("metabolism");
+            message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
+        }
+        {   // movement_response message
+            MsgArray2D::Description &message = submodel.newMessage<MsgArray2D>("movement_response");
+            message.newVariable<int>("location_id");
+            message.newVariable<int>("agent_id");
+            message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
+        }
+        /**
+         * Agents
+         */
+        {
+            AgentDescription &agent = makeCoreAgent(submodel);
+            auto &fn_output_cell_status = agent.newFunction("output_cell_status", output_cell_status);
+            {
+                fn_output_cell_status.setMessageOutput("cell_status");
+            }
+            auto &fn_movement_request = agent.newFunction("movement_request", movement_request);
+            {
+                fn_movement_request.setMessageInput("cell_status");
+                fn_movement_request.setMessageOutput("movement_request");
+            }
+            auto &fn_movement_response = agent.newFunction("movement_response", movement_response);
+            {
+                fn_movement_response.setMessageInput("movement_request");
+                fn_movement_response.setMessageOutput("movement_response");
+            }
+            auto &fn_movement_transaction = agent.newFunction("movement_transaction", movement_transaction);
+            {
+                fn_movement_transaction.setMessageInput("movement_response");
+            }
+        }
+
+        /**
+         * Globals
+         */
+        {
+            // EnvironmentDescription &env = model.Environment();
+        }
+
+        /**
+         * Control flow
+         */
+        {   // Layer #1
+            LayerDescription &layer = submodel.newLayer();
+            layer.addAgentFunction(output_cell_status);
+        }
+        {   // Layer #2
+            LayerDescription &layer = submodel.newLayer();
+            layer.addAgentFunction(movement_request);
+        }
+        {   // Layer #3
+            LayerDescription &layer = submodel.newLayer();
+            layer.addAgentFunction(movement_response);
+        }
+        {   // Layer #4
+            LayerDescription &layer = submodel.newLayer();
+            layer.addAgentFunction(movement_transaction);
+        }
+        submodel.addExitCondition(MovementExitCondition);
+    }
+
     ModelDescription model("Sugarscape_example");
 
-    {   // cell_state message
-        MsgArray2D::Description &message = model.newMessage<MsgArray2D>("cell_state");
-        message.newVariable<int>("location_id");
-        message.newVariable<int>("state");
-        message.newVariable<int>("env_sugar_level");
-        message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
-    }
-    {   // movement_request message
-        MsgArray2D::Description &message = model.newMessage<MsgArray2D>("movement_request");
-        message.newVariable<int>("agent_id");
-        message.newVariable<int>("location_id");
-        message.newVariable<int>("sugar_level");
-        message.newVariable<int>("metabolism");
-        message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
-    }
-    {   // movement_response message
-        MsgArray2D::Description &message = model.newMessage<MsgArray2D>("movement_response");
-        message.newVariable<int>("location_id");
-        message.newVariable<int>("agent_id");
-        message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
-    }
+    /**
+     * Agents
+     */
     {   // Per cell agent
-        AgentDescription &agent = model.newAgent("agent");
-        agent.newVariable<unsigned int, 2>("pos");
-        agent.newVariable<int>("location_id");
-        agent.newVariable<int>("agent_id");
-        agent.newVariable<int>("state");
-        // agent specific variables
-        agent.newVariable<int>("sugar_level");
-        agent.newVariable<int>("metabolism");
-        // environment specific var
-        agent.newVariable<int>("env_sugar_level");
+        AgentDescription &agent = makeCoreAgent(model);
         // Functions
-        agent.newFunction("metabolise_and_growback", metabolise_and_growback);  // This has function condition if (state != AGENT_STATE_MOVEMENT_UNRESOLVED) max iterations 9
-        auto &fn_output_cell_state = agent.newFunction("output_cell_state", output_cell_state);
-        {
-            fn_output_cell_state.setMessageOutput("cell_state");
-        }
-        auto &fn_movement_request = agent.newFunction("movement_request", movement_request);
-        {
-            fn_movement_request.setMessageInput("cell_state");
-            fn_movement_request.setMessageOutput("movement_request");
-        }
-        auto &fn_movement_response = agent.newFunction("movement_response", movement_response);
-        {
-            fn_movement_request.setMessageInput("movement_request");
-            fn_movement_response.setMessageOutput("movement_response");
-        }
-        auto &fn_movement_transaction = agent.newFunction("movement_transaction", movement_transaction);
-        {
-            fn_movement_transaction.setMessageInput("movement_response");
-        }
+        agent.newFunction("metabolise_and_growback", metabolise_and_growback);
     }
 
     /**
-     * GLOBALS
+     * Submodels
+     */
+    SubModelDescription &movement_sub = model.newSubModel("movement_conflict_resolution_model", submodel);
+    {
+        movement_sub.bindAgent("agent", "agent", true, true);
+    }
+
+    /**
+     * Globals
      */
     {
         // EnvironmentDescription &env = model.Environment();
@@ -252,19 +326,7 @@ int main(int argc, const char ** argv) {
     }
     {   // Layer #2
         LayerDescription &layer = model.newLayer();
-        layer.addAgentFunction(output_cell_state);
-    }
-    {   // Layer #3
-        LayerDescription &layer = model.newLayer();
-        layer.addAgentFunction(movement_request);
-    }
-    {   // Layer #4
-        LayerDescription &layer = model.newLayer();
-        layer.addAgentFunction(movement_response);
-    }
-    {   // Layer #5
-        LayerDescription &layer = model.newLayer();
-        layer.addAgentFunction(movement_transaction);
+        layer.addSubModel(movement_sub);
     }
     NVTX_POP();
 
@@ -278,6 +340,7 @@ int main(int argc, const char ** argv) {
     /**
      * Initialisation
      */
+    NVTX_PUSH("CUDAAgentModel initialisation");
     cuda_model.initialise(argc, argv);
     if (cuda_model.getSimulationConfig().xml_input_file.empty()) {
         // Currently population has not been init, so generate an agent population on the fly
@@ -292,7 +355,7 @@ int main(int argc, const char ** argv) {
                 // TODO: How should these values be init?
                 instance.setVariable<int>("location_id", dist(rng));
                 instance.setVariable<int>("agent_id", dist(rng));
-                instance.setVariable<int>("state", dist(rng));
+                instance.setVariable<int>("status", dist(rng));
                 // agent specific variables
                 instance.setVariable<int>("sugar_level", dist(rng));
                 instance.setVariable<int>("metabolism", dist(rng));
@@ -302,6 +365,7 @@ int main(int argc, const char ** argv) {
         }
         cuda_model.setPopulationData(init_pop);
     }
+    NVTX_POP();
 
     /**
      * Execution
