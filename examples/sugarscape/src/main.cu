@@ -9,6 +9,10 @@
 #include "flamegpu/io/factory.h"
 #include "flamegpu/util/nvtx.h"
 
+// Grid Size (the product of these is the agent count)
+#define GRID_WIDTH 256
+#define GRID_HEIGHT 256
+
 // Agent state variables
 #define AGENT_STATE_UNOCCUPIED 0
 #define AGENT_STATE_OCCUPIED 1
@@ -59,8 +63,8 @@ FLAMEGPU_AGENT_FUNCTION(metabolise_and_growback, MsgNone, MsgNone) {
     return ALIVE;
 }
 FLAMEGPU_AGENT_FUNCTION(output_cell_state, MsgNone, MsgArray2D) {
-    int agent_x = 0;  // TODO
-    int agent_y = 0;  // TODO
+    unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
+    unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
     FLAMEGPU->message_out.setVariable("location_id", FLAMEGPU->getVariable<int>("location_id"));
     FLAMEGPU->message_out.setVariable("state", FLAMEGPU->getVariable<int>("state"));
     FLAMEGPU->message_out.setVariable("env_sugar_level", FLAMEGPU->getVariable<int>("env_sugar_level"));
@@ -73,8 +77,8 @@ FLAMEGPU_AGENT_FUNCTION(movement_request, MsgArray2D, MsgArray2D) {
 
     // find the best location to move to
     int state = FLAMEGPU->getVariable<int>("state");
-    int agent_x = 0;  // TODO
-    int agent_y = 0;  // TODO
+    unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
+    unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
     for (auto current_message : FLAMEGPU->message_in(agent_x, agent_y)) {
         // if occupied then look for empty cells
         if (state == AGENT_STATE_MOVEMENT_UNRESOLVED) {
@@ -113,8 +117,8 @@ FLAMEGPU_AGENT_FUNCTION(movement_response, MsgArray2D, MsgArray2D) {
 
     int state = FLAMEGPU->getVariable<int>("state");
     int location_id = FLAMEGPU->getVariable<int>("location_id");
-    int agent_x = 0;  // TODO
-    int agent_y = 0;  // TODO
+    unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
+    unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
 
     for (auto current_message : FLAMEGPU->message_in(agent_x, agent_y)) {
         // if the location is unoccupied then check for agents requesting to move here
@@ -150,8 +154,8 @@ FLAMEGPU_AGENT_FUNCTION(movement_response, MsgArray2D, MsgArray2D) {
 FLAMEGPU_AGENT_FUNCTION(movement_transaction, MsgArray2D, MsgNone) {
     int state = FLAMEGPU->getVariable<int>("state");
     int agent_id = FLAMEGPU->getVariable<int>("agent_id");
-    int agent_x = 0;  // TODO
-    int agent_y = 0;  // TODO
+    unsigned int agent_x = FLAMEGPU->getVariable<unsigned int, 2>("pos", 0);
+    unsigned int agent_y = FLAMEGPU->getVariable<unsigned int, 2>("pos", 1);
 
     for (auto current_message : FLAMEGPU->message_in(agent_x, agent_y)) {
         // if location contains an agent wanting to move then look for responses allowing relocation
@@ -183,7 +187,7 @@ int main(int argc, const char ** argv) {
         message.newVariable<int>("location_id");
         message.newVariable<int>("state");
         message.newVariable<int>("env_sugar_level");
-        // message.setDimensions(10, 10);
+        message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
     }
     {   // movement_request message
         MsgArray2D::Description &message = model.newMessage<MsgArray2D>("movement_request");
@@ -191,16 +195,17 @@ int main(int argc, const char ** argv) {
         message.newVariable<int>("location_id");
         message.newVariable<int>("sugar_level");
         message.newVariable<int>("metabolism");
-        // message.setDimensions(10, 10);
+        message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
     }
     {   // movement_response message
         MsgArray2D::Description &message = model.newMessage<MsgArray2D>("movement_response");
         message.newVariable<int>("location_id");
         message.newVariable<int>("agent_id");
-        // message.setDimensions(10, 10);
+        message.setDimensions(GRID_WIDTH, GRID_HEIGHT);
     }
     {   // Per cell agent
         AgentDescription &agent = model.newAgent("agent");
+        agent.newVariable<unsigned int, 2>("pos");
         agent.newVariable<int>("location_id");
         agent.newVariable<int>("agent_id");
         agent.newVariable<int>("state");
@@ -276,20 +281,26 @@ int main(int argc, const char ** argv) {
     cuda_model.initialise(argc, argv);
     if (cuda_model.getSimulationConfig().xml_input_file.empty()) {
         // Currently population has not been init, so generate an agent population on the fly
-        // const unsigned int SQRT_AGENT_COUNT = 10;
-        // const unsigned int AGENT_COUNT = SQRT_AGENT_COUNT * SQRT_AGENT_COUNT;
-        // std::default_random_engine rng;
-        // std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-        // AgentPopulation init_pop(model.Agent("cell"), AGENT_COUNT);
-        // for (unsigned int x = 0; x < SQRT_AGENT_COUNT; ++x) {
-        //     for (unsigned int y = 0; y < SQRT_AGENT_COUNT; ++y) {
-        //         AgentInstance instance = init_pop.getNextInstance();
-        //         instance.setVariable<unsigned int, 2>("pos", { x, y });
-        //         char is_alive = dist(rng) < 0.4f ? 1 : 0;
-        //         instance.setVariable<char>("is_alive", is_alive);  // 40% Chance of being alive
-        //     }
-        // }
-        // cuda_model.setPopulationData(init_pop);
+        const unsigned int AGENT_COUNT = GRID_WIDTH * GRID_HEIGHT;
+        std::default_random_engine rng;
+        std::uniform_int_distribution<int> dist(0, 1);
+        AgentPopulation init_pop(model.Agent("agent"), AGENT_COUNT);
+        for (unsigned int x = 0; x < GRID_WIDTH; ++x) {
+            for (unsigned int y = 0; y < GRID_HEIGHT; ++y) {
+                AgentInstance instance = init_pop.getNextInstance();
+                instance.setVariable<unsigned int, 2>("pos", { x, y });
+                // TODO: How should these values be init?
+                instance.setVariable<int>("location_id", dist(rng));
+                instance.setVariable<int>("agent_id", dist(rng));
+                instance.setVariable<int>("state", dist(rng));
+                // agent specific variables
+                instance.setVariable<int>("sugar_level", dist(rng));
+                instance.setVariable<int>("metabolism", dist(rng));
+                // environment specific var
+                instance.setVariable<int>("env_sugar_level", dist(rng));
+            }
+        }
+        cuda_model.setPopulationData(init_pop);
     }
 
     /**
