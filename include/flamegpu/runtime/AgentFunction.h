@@ -15,7 +15,7 @@
 enum FLAME_GPU_AGENT_STATUS { ALIVE = 1, DEAD = 0 };
 
 typedef void(AgentFunctionWrapper)(
-    Curve::NamespaceHash model_name_hash,
+    Curve::NamespaceHash instance_id_hash,
     Curve::NamespaceHash agent_func_name_hash,
     Curve::NamespaceHash messagename_inp_hash,
     Curve::NamespaceHash messagename_outp_hash,
@@ -30,12 +30,12 @@ typedef void(AgentFunctionWrapper)(
 /**
  * Wrapper function for launching agent functions
  * Initialises FLAMEGPU_API instance
- * @param model_name_hash CURVE hash of the model's name
+ * @param instance_id_hash CURVE hash of the CUDAAgentModel's instance id
  * @param agent_func_name_hash CURVE hash of the agent + function's names
  * @param messagename_inp_hash CURVE hash of the input message's name
  * @param messagename_outp_hash CURVE hash of the output message's name
  * @param agent_output_hash CURVE hash of "_agent_birth" or 0 if agent birth not present
- * @param popNo Total number of agents exeucting the function (number of threads launched)
+ * @param popNo Total number of agents executing the function (number of threads launched)
  * @param in_messagelist_metadata Pointer to the MsgIn metadata struct, it is interpreted by MsgIn
  * @param out_messagelist_metadata Pointer to the MsgOut metadata struct, it is interpreted by MsgOut
  * @param thread_in_layer_offset Add this value to TID to calculate a thread-safe TID (TS_ID), used by ActorRandom for accessing curand array in a thread-safe manner
@@ -45,7 +45,7 @@ typedef void(AgentFunctionWrapper)(
  */
 template<typename AgentFunction, typename MsgIn, typename MsgOut>
 __global__ void agent_function_wrapper(
-    Curve::NamespaceHash model_name_hash,
+    Curve::NamespaceHash instance_id_hash,
     Curve::NamespaceHash agent_func_name_hash,
     Curve::NamespaceHash messagename_inp_hash,
     Curve::NamespaceHash messagename_outp_hash,
@@ -62,7 +62,7 @@ __global__ void agent_function_wrapper(
     // create a new device FLAME_GPU instance
     FLAMEGPU_DEVICE_API<MsgIn, MsgOut> *api = new FLAMEGPU_DEVICE_API<MsgIn, MsgOut>(
         thread_in_layer_offset,
-        model_name_hash,
+        instance_id_hash,
         agent_func_name_hash,
         agent_output_hash,
         d_rng,

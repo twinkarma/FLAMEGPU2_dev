@@ -23,11 +23,12 @@ class StateWriter {
     //  Constructors and Destructor
     // -----------------------------------------------------------------------
 
-    StateWriter(const std::string &_model_name, const std::unordered_map<std::string, std::shared_ptr<AgentPopulation>> &_model_state, const unsigned int &_iterations, const std::string &output_file)
+    StateWriter(const std::string &_model_name, const unsigned int &_instance_id, const std::unordered_map<std::string, std::shared_ptr<AgentPopulation>> &_model_state, const unsigned int &_iterations, const std::string &output_file)
     : model_state(_model_state)
     , iterations(_iterations)
     , outputFile(output_file)
-    , model_name(_model_name) {}
+    , model_name(_model_name)
+    , instance_id(_instance_id) {}
     ~StateWriter() {}
 
     // -----------------------------------------------------------------------
@@ -41,6 +42,7 @@ class StateWriter {
     unsigned int iterations;
     std::string outputFile;
     const std::string model_name;
+    const unsigned int instance_id;
 };
 
 #endif  // INCLUDE_FLAMEGPU_IO_STATEWRITER_H_

@@ -10,7 +10,7 @@
 
 // ! FLAMEGPU function return type
 typedef void(AgentFunctionConditionWrapper)(
-    Curve::NamespaceHash model_name_hash,
+    Curve::NamespaceHash instance_id_hash,
     Curve::NamespaceHash agent_func_name_hash,
     const int popNo,
     curandState *d_rng,
@@ -20,7 +20,7 @@ typedef void(AgentFunctionConditionWrapper)(
 /**
  * Wrapper function for launching agent functions
  * Initialises FLAMEGPU_API instance
- * @param model_name_hash CURVE hash of the model's name
+ * @param instance_id_hash CURVE hash of the CUDAAgentModel's instance id
  * @param agent_func_name_hash CURVE hash of the agent + function's names
  * @param popNo Total number of agents exeucting the function (number of threads launched)
  * @param thread_in_layer_offset Add this value to TID to calculate a thread-safe TID (TS_ID), used by ActorRandom for accessing curand array in a thread-safe manner
@@ -29,7 +29,7 @@ typedef void(AgentFunctionConditionWrapper)(
  */
 template<typename AgentFunctionCondition>
 __global__ void agent_function_condition_wrapper(
-    Curve::NamespaceHash model_name_hash,
+    Curve::NamespaceHash instance_id_hash,
     Curve::NamespaceHash agent_func_name_hash,
     const int popNo,
     curandState *d_rng,
@@ -41,7 +41,7 @@ __global__ void agent_function_condition_wrapper(
     // create a new device FLAME_GPU instance
     FLAMEGPU_READ_ONLY_DEVICE_API *api = new FLAMEGPU_READ_ONLY_DEVICE_API(
         thread_in_layer_offset,
-        model_name_hash,
+        instance_id_hash,
         agent_func_name_hash,
         d_rng,
         streamId);
