@@ -343,24 +343,74 @@ int main(int argc, const char ** argv) {
     NVTX_PUSH("CUDAAgentModel initialisation");
     cuda_model.initialise(argc, argv);
     if (cuda_model.getSimulationConfig().xml_input_file.empty()) {
+        std::default_random_engine rng;
+        // Pre init, decide the sugar hotspots
+        std::vector<std::tuple<unsigned int, unsigned int, unsigned int, unsigned int>> sugar_hotspots;
+        {
+            std::uniform_int_distribution<unsigned int> width_dist(0, GRID_WIDTH-1);
+            std::uniform_int_distribution<unsigned int> height_dist(0, GRID_HEIGHT-1);
+            // Each sugar hotspot has a radius of 3-15 blocks
+            std::uniform_int_distribution<unsigned int> radius_dist(3, 15);
+            // Center has 100-250 sugar
+            std::uniform_int_distribution<unsigned int> sugar_dist(0, 150);
+            // Hostpot area should cover around 50% of the map
+            float hotspot_area = 0;
+            while (hotspot_area < GRID_WIDTH * GRID_HEIGHT) {
+                unsigned int rad = radius_dist(rng);
+                std::tuple<int, int, unsigned int, unsigned int> hs = {width_dist(rng), height_dist(rng), rad, sugar_dist(rng)};
+                hotspot_area += 3.141 * rad * rad;
+            }
+        }
+
+
         // Currently population has not been init, so generate an agent population on the fly
         const unsigned int AGENT_COUNT = GRID_WIDTH * GRID_HEIGHT;
-        std::default_random_engine rng;
-        std::uniform_int_distribution<int> dist(0, 1);
+        std::uniform_real_distribution<float> normal(0, 1);
+        std::uniform_int_distribution<int> agent_sugar_dist(0, 7);
+        std::uniform_int_distribution<int> poor_env_sugar_dist(0, 100);
+        unsigned int location_id = 0;
+        unsigned int agent_id = 0;
         AgentPopulation init_pop(model.Agent("agent"), AGENT_COUNT);
         for (unsigned int x = 0; x < GRID_WIDTH; ++x) {
             for (unsigned int y = 0; y < GRID_HEIGHT; ++y) {
                 AgentInstance instance = init_pop.getNextInstance();
                 instance.setVariable<unsigned int, 2>("pos", { x, y });
                 // TODO: How should these values be init?
-                instance.setVariable<int>("location_id", dist(rng));
-                instance.setVariable<int>("agent_id", dist(rng));
-                instance.setVariable<int>("status", dist(rng));
+                // Location index assigned linearly
+                instance.setVariable<int>("location_id", location_id++);
                 // agent specific variables
-                instance.setVariable<int>("sugar_level", dist(rng));
-                instance.setVariable<int>("metabolism", dist(rng));
+                // 50% chance of cell holding an agent
+                if (normal(rng) > 0.5) {
+                    instance.setVariable<int>("agent_id", agent_id++);
+                    instance.setVariable<int>("status", AGENT_STATUS_OCCUPIED);
+                    instance.setVariable<int>("sugar_level", agent_sugar_dist(rng)/2);  // Agent sugar dist 0-3, less chance of 0
+                    instance.setVariable<int>("metabolism", 1);
+                } else {
+                    instance.setVariable<int>("agent_id", -1);
+                    instance.setVariable<int>("status", AGENT_STATUS_UNOCCUPIED);
+                    instance.setVariable<int>("sugar_level", 0);
+                    instance.setVariable<int>("metabolism", 0);
+                }
                 // environment specific var
-                instance.setVariable<int>("env_sugar_level", dist(rng));
+                unsigned int env_sugar_lvl = 0;
+                const int hotspot_core_size = 5;
+                for (auto &hs : sugar_hotspots) {
+                    // Workout the highest sugar lvl from a nearby hotspot
+                    int hs_x = std::get<0>(hs);
+                    int hs_y = std::get<1>(hs);
+                    unsigned int hs_rad = std::get<2>(hs);
+                    unsigned int hs_level = std::get<3>(hs);
+                    float hs_dist = sqrt(pow(hs_x-x, 2.0) + pow(hs_y-y, 2.0));
+                    if (hs_dist <= hotspot_core_size) {
+                        unsigned int t = 100 + hs_level;
+                        env_sugar_lvl = t > env_sugar_lvl ? t : env_sugar_lvl;
+                    } else if (hs_dist <= hs_rad) {
+                        unsigned int t = 100 + (hs_dist-hotspot_core_size)/(hs_rad-hotspot_core_size) * hs_level;
+                        env_sugar_lvl = t > env_sugar_lvl ? t : env_sugar_lvl;
+                    }
+                }
+                env_sugar_lvl = env_sugar_lvl < 100 ? poor_env_sugar_dist(rng) : env_sugar_lvl;
+                instance.setVariable<int>("env_sugar_level", env_sugar_lvl);
             }
         }
         cuda_model.setPopulationData(init_pop);
