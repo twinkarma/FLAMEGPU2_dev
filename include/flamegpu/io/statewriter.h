@@ -19,10 +19,16 @@
 
 class StateWriter {
  public:
-    // -----------------------------------------------------------------------
-    //  Constructors and Destructor
-    // -----------------------------------------------------------------------
-
+    /**
+     * Returns a writer capable of writing model state to a specific format (this class is abstract)
+     * Environment properties from the Simulation instance pointed to by 'instance_id' will be used 
+     * Agent data will be read from 'model_state'
+     * @param _model_name Name from the model description hierarchy of the model to be exported
+     * @param _instance_id Instance is from the Simulation instance to export the environment properties fromo
+     * @param _model_state Map of AgentPopulation to read the agent data from per agent, key should be agent name
+     * @param _iterations The value from the step counter at the time of export.
+     * @param output_file Filename of the input file (This will be used to determine which reader to return)
+     */
     StateWriter(const std::string &_model_name, const unsigned int &_instance_id, const std::unordered_map<std::string, std::shared_ptr<AgentPopulation>> &_model_state, const unsigned int &_iterations, const std::string &output_file)
     : model_state(_model_state)
     , iterations(_iterations)
@@ -34,11 +40,15 @@ class StateWriter {
     // -----------------------------------------------------------------------
     //  The interface
     // -----------------------------------------------------------------------
-
+    /**
+     * Actually perform the file export
+     * @return Returns a return code
+     * @todo: This should probably be the same return code between subclasses, and seems redundant with our exceptions as should never return fail.
+     */
     virtual int writeStates() = 0;
 
  protected:
-    const std::unordered_map<std::string, std::shared_ptr<AgentPopulation>> model_state;
+    const std::unordered_map<std::string, std::shared_ptr<AgentPopulation>> model_state{};
     unsigned int iterations;
     std::string outputFile;
     const std::string model_name;
