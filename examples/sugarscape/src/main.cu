@@ -358,7 +358,8 @@ int main(int argc, const char ** argv) {
             while (hotspot_area < GRID_WIDTH * GRID_HEIGHT) {
                 unsigned int rad = radius_dist(rng);
                 std::tuple<int, int, unsigned int, unsigned int> hs = {width_dist(rng), height_dist(rng), rad, sugar_dist(rng)};
-                hotspot_area += 3.141 * rad * rad;
+                sugar_hotspots.push_back(hs);
+                hotspot_area += 3.141f * rad * rad;
             }
         }
 
@@ -400,7 +401,7 @@ int main(int argc, const char ** argv) {
                     int hs_y = std::get<1>(hs);
                     unsigned int hs_rad = std::get<2>(hs);
                     unsigned int hs_level = std::get<3>(hs);
-                    float hs_dist = sqrt(pow(hs_x-x, 2.0) + pow(hs_y-y, 2.0));
+                    float hs_dist = static_cast<float>(sqrt(pow(hs_x-x, 2.0) + pow(hs_y-y, 2.0)));
                     if (hs_dist <= hotspot_core_size) {
                         unsigned int t = 100 + hs_level;
                         env_sugar_lvl = t > env_sugar_lvl ? t : env_sugar_lvl;
