@@ -99,14 +99,14 @@ __forceinline__ __device__ double AgentRandom::logNormal(const double& mean, con
 template<typename T>
 __forceinline__ __device__ T AgentRandom::uniform(const T& min, const T& max) const {
     static_assert(FGPU_SA::_Is_IntType<T>::value, "Invalid template argument for AgentRandom::uniform(const T& min, const T& max)");
-    return static_cast<T>(min + (max - min) * uniform<float>());
+    return static_cast<T>(min + (1 + max - min) * (1.0f - uniform<float>()));
 }
 template<>
 __forceinline__ __device__ int64_t AgentRandom::uniform(const int64_t& min, const int64_t& max) const {
-    return static_cast<int64_t>(min + (max - min) * uniform<double>());
+    return static_cast<int64_t>(min + (1 + max - min) * (1.0 - uniform<double>()));
 }
 template<>
 __forceinline__ __device__ uint64_t AgentRandom::uniform(const uint64_t& min, const uint64_t& max) const {
-    return static_cast<uint64_t>(min + (max - min) * uniform<double>());
+    return static_cast<uint64_t>(min + (1 + max - min) * (1.0 - uniform<double>()));
 }
 #endif  // INCLUDE_FLAMEGPU_RUNTIME_UTILITY_AGENTRANDOM_CUH_
