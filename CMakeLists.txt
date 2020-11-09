@@ -57,7 +57,7 @@ cmake_dependent_option(BUILD_SWIG_PYTHON_VIRTUALENV "Enable building of SWIG Pyt
                        "BUILD_SWIG_PYTHON" OFF)
 
 # Option to enable/disable building the static library
-option(VISUALISATION "Enable visualisation support" OFF)
+option(VISUALISATION "Enable visualisation support" ON)
 
 
 # Option to enable/disable tests.
@@ -105,6 +105,10 @@ if(BUILD_FLAMEGPU2)
 endif()
 
 # Add each example
+
+if(BUILD_ALL_EXAMPLES OR BUILD_EXAMPLE_PEDESTRIAN_RVO)
+    add_subdirectory(examples/pedestrian_rvo)
+endif()
 
 if(BUILD_ALL_EXAMPLES OR BUILD_EXAMPLE_HOST_FUNCTIONS)
     add_subdirectory(examples/host_functions)
