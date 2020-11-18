@@ -14,7 +14,7 @@ public:
 	RVOGraph(void);
 	~RVOGraph(void);
 
-	void buildRVO(std::vector<std::vector<float2>> obstacles, void* obstacles_d, void* kdnodes_d);
+	void buildRVO(std::vector<std::vector<float2>>& obstacles, void* obstacles_d, void* kdnodes_d);
 
 	// void buildRVO(Scene* scene, NavigationDataStructs& navData);
 	// std::vector<RVObstacle*> buildRVOObstacles(Scene* scene);

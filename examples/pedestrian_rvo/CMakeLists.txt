@@ -24,8 +24,11 @@ endif()
 # Can't do this automatically, as CMake wouldn't know when to regen (as CMakeLists.txt would be unchanged)
 SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rvo_kernels.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RVOGraph.cu
 )
+
+option(VISUALISATION "Enable visualisation support" On)
 
 # Option to enable/disable building the static library
 # option(VISUALISATION "Enable visualisation support" OFF) # This example is unlikely to have a visualisation

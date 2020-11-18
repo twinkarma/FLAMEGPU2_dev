@@ -1,7 +1,5 @@
 #include "RVOGraph.cuh"
-
-
-
+#include "flamegpu/gpu/CUDAErrorChecking.h"
 
 
 RVOGraph::RVOGraph(void)
@@ -13,40 +11,86 @@ RVOGraph::~RVOGraph(void)
 {
 }
 
-void RVOGraph::buildRVO(std::vector<std::vector<float2>> obstacles, void* obstacles_d, void* kdnodes_d){
+void RVOGraph::buildRVO(std::vector<std::vector<float2>>& obstacles, void* obstacles_d, void* kdnodes_d){
 	
-	
+	std::vector<RVObstacle*> rvoObstacles;
 
-	
+	for( auto line : obstacles){
+		addRVOObstacle(line, rvoObstacles);
+	}
 
+	auto gpuObstacles = initialiseObstacles(rvoObstacles.size());
+	for( int i = 0; i < rvoObstacles.size(); i++){
+		gpuObstacles.id[i] = rvoObstacles[i]->id;
+		gpuObstacles.point[i] = rvoObstacles[i]->point;
+		gpuObstacles.unitDir[i] = rvoObstacles[i]->unitDir;
+		gpuObstacles.isConvex[i] = rvoObstacles[i]->isConvex;
+		gpuObstacles.nextObstacleIndex[i] = rvoObstacles[i]->nextObstacleIndex;
+		gpuObstacles.prevObstacleIndex[i] = rvoObstacles[i]->prevObstacleIndex;
+	}
 
-	// cudaMemcpy(obstacles_d, obstacles, sizeof(obstacles) cudaMemcpyHostToDevice);
-	// cudaMemcpy(kdnodes_d, kdnodes, sizeof(kdnodes) cudaMemcpyHostToDevice);
+    gpuErrchk(cudaMemcpy(obstacles_d, &gpuObstacles, sizeof(gpuObstacles), cudaMemcpyHostToDevice));
 
+	if(obstacles.size() > 0){
+        ObstacleTreeNode* obsKdNode = recursivelyBuildObstacleTree(rvoObstacles, rvoObstacles);
+        int kdNodeCount = 0;
+        recursivelyIndexObstacleTreeNode(obsKdNode, kdNodeCount);
+        auto gpuKdnodes = initialiseKdnodes(kdNodeCount); //Pre-allocate the array
+        recursivelyBuildGPUObstacleTree(obsKdNode, 0, true, gpuKdnodes);
+        gpuErrchk(cudaMemcpy(kdnodes_d, &gpuKdnodes, sizeof(gpuKdnodes), cudaMemcpyHostToDevice));
+
+	}
+	else
+    {
+	    //No nodes if empty
+        auto gpuKdnodes = initialiseKdnodes(0); //Pre-allocate the array
+        gpuErrchk(cudaMemcpy(kdnodes_d, &gpuKdnodes, sizeof(gpuKdnodes), cudaMemcpyHostToDevice));
+
+    }
 }
 
 RVObstacleGSOA RVOGraph::initialiseObstacles(size_t size){
 	RVObstacleGSOA obstacles;
 	obstacles.size = size;
-	cudaMallocManaged(&obstacles.id, size*sizeof(int));
-	cudaMallocManaged(&obstacles.point, size*sizeof(float2));
-	cudaMallocManaged(&obstacles.unitDir, size*sizeof(float2));
-	cudaMallocManaged(&obstacles.isConvex, size*sizeof(int));
-	cudaMallocManaged(&obstacles.nextObstacleIndex, size*sizeof(int));
-	cudaMallocManaged(&obstacles.prevObstacleIndex, size*sizeof(int));
+	obstacles.id = nullptr;
+	obstacles.point = nullptr;
+	obstacles.unitDir = nullptr;
+	obstacles.isConvex = nullptr;
+	obstacles.nextObstacleIndex = nullptr;
+	obstacles.prevObstacleIndex = nullptr;
+
+	if(size > 0){
+		gpuErrchk(cudaMallocManaged(&obstacles.id, size*sizeof(int)));
+        gpuErrchk(cudaMallocManaged(&obstacles.point, size*sizeof(float2)));
+        gpuErrchk(cudaMallocManaged(&obstacles.unitDir, size*sizeof(float2)));
+        gpuErrchk(cudaMallocManaged(&obstacles.isConvex, size*sizeof(int)));
+        gpuErrchk(cudaMallocManaged(&obstacles.nextObstacleIndex, size*sizeof(int)));
+        gpuErrchk(cudaMallocManaged(&obstacles.prevObstacleIndex, size*sizeof(int)));
+
+	}
+
+
 	return obstacles;
 }
 
 RVOKDNodeGSOA RVOGraph::initialiseKdnodes(size_t size){
 	RVOKDNodeGSOA kdnodes;
 	kdnodes.size = size;
-	cudaMallocManaged(&kdnodes.leftIndex, size*sizeof(int));
-	cudaMallocManaged(&kdnodes.rightIndex, size*sizeof(int));
-	cudaMallocManaged(&kdnodes.siblingIndex, size*sizeof(int));
-	cudaMallocManaged(&kdnodes.parentIndex, size*sizeof(int));
-	cudaMallocManaged(&kdnodes.obstacleIndex, size*sizeof(int));
-	return kdnodes;
+	kdnodes.leftIndex = nullptr;
+	kdnodes.rightIndex = nullptr;
+	kdnodes.siblingIndex = nullptr;
+	kdnodes.parentIndex = nullptr;
+	kdnodes.obstacleIndex = nullptr;
 
+	if(size > 0){
+        gpuErrchk(cudaMallocManaged(&kdnodes.leftIndex, size*sizeof(int)));
+        gpuErrchk(cudaMallocManaged(&kdnodes.rightIndex, size*sizeof(int)));
+        gpuErrchk(cudaMallocManaged(&kdnodes.siblingIndex, size*sizeof(int)));
+        gpuErrchk(cudaMallocManaged(&kdnodes.parentIndex, size*sizeof(int)));
+        gpuErrchk(cudaMallocManaged(&kdnodes.obstacleIndex, size*sizeof(int)));
+	}
+
+	return kdnodes;
 }
 
 
