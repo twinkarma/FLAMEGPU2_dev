@@ -2,9 +2,12 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <string>
+
 
 #include "flamegpu/flame_api.h"
 
+#include "io.cuh"
 #include "rvo_kernels.cuh"
 #include "RVOGraph.cuh"
 
@@ -104,11 +107,12 @@ FLAMEGPU_AGENT_FUNCTION(move, MsgSpatial3D, MsgNone) {
 
 }
 
+
+
 int main(int argc, const char ** argv) {
 
-    
 
-
+    importSteerBenchXML("merseyrail.xml");
 
 
     /**
@@ -237,9 +241,6 @@ int main(int argc, const char ** argv) {
 
         }
     }
-
-
-
 
 
 
