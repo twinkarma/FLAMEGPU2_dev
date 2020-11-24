@@ -1,54 +1,22 @@
-#include <string>
-#include <vector>
-#include <memory>
+#ifndef __PEDRVO_IO__
+#define __PEDRVO_IO__
 
-struct Bounds {
-    float3 min;
-    float3 max;
-};
+#include "modelspec.cuh"
 
-struct ObstacleRegion{
-    int numObstacles;
-    float obstacleSize;
-    float obstacleHeight;
-    Bounds regionBounds;
-};
+/**
+ * Create a modelspec object from the steerbench XML
+ * @param filePath
+ * @return Shared pointer to the created ModelEnvSpec object
+ */
+ModelEnvSpecPtr importSteerBenchXML(std::string filePath);
+void expandSteerbenchEnvRegions(ModelEnvSpecPtr env);
 
-struct AgentGoal{
-    std::string targetName;
-    bool seekTarget; //If true navigate to target, false then flees target
-    bool fleeTarget;
-    bool idle;
-    float3 targetLocation;
-    float desiredSpeed;
-    float timeDuration;
-};
+/**
+ * Create a counter-clockwise line of float2 to represent the boundary
+ * @param bounds
+ * @return
+ */
+std::vector<float2> getLineFromBounds(Bounds& bounds);
 
 
-struct Agent{
-    std::string name; //Agent only
-
-    int numAgents; //Agent region only
-    Bounds regionBounds; //Agent region only
-
-    //Initial conditions
-    float radius;
-    float3 position;
-    float speed;
-    float3 direction;
-
-    //Goals
-    std::vector<AgentGoal> goals;
-
-};
-
-struct SteerbenchEnv {
-    Bounds envBounds;
-    std::vector<Bounds> obstacles;
-    std::vector<Agent> agents;
-    std::vector<Agent> agentRegions;
-};
-
-typedef std::shared_ptr<SteerbenchEnv> SteerbenchEnvPtr;
-
-SteerbenchEnvPtr importSteerBenchXML(std::string filePath);
+#endif //__PEDRVO_IO__

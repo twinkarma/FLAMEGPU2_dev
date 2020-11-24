@@ -61,6 +61,15 @@ std::string getString(XMLElement* node)
     }
 }
 
+float getInt(XMLElement* node)
+{
+    if(node){
+        return node->IntText(0);
+    }else{
+        return 0;
+    }
+}
+
 float getFloat(XMLElement* node)
 {
     if(node){
@@ -71,15 +80,17 @@ float getFloat(XMLElement* node)
     }
 }
 
-float3 getFloat3(XMLElement* node)
+float3 getFloat3(XMLElement* node, bool* isRandom = nullptr)
 {
     if(node){
         if(node->FirstChildElement("random"))
         {
+            if(isRandom) *isRandom = true;
             //Make random
             return make_float3(dist(e2), dist(e2), dist(e2));
         }
         else{
+            if(isRandom) *isRandom = false;
             float x = getFloat(node->FirstChildElement("x"));
             float y = getFloat(node->FirstChildElement("y"));
             float z = getFloat(node->FirstChildElement("z"));
@@ -87,6 +98,7 @@ float3 getFloat3(XMLElement* node)
         }
     }
     else{
+        if(isRandom) *isRandom = false;
         return make_float3(0,0,0);
     }
 
@@ -159,9 +171,9 @@ std::vector<AgentGoal> getAgentGoals(XMLElement* goalSequenceNode)
     return goals;
 }
 
-SteerbenchEnvPtr importSteerBenchXML(string filePath)
+ModelEnvSpecPtr importSteerBenchXML(string filePath)
 {
-    SteerbenchEnvPtr env(new SteerbenchEnv());
+    ModelEnvSpecPtr env(new ModelEnvSpec());
 
     XMLDocument doc;
     XMLError errorId = doc.LoadFile(filePath.c_str());
@@ -194,7 +206,14 @@ SteerbenchEnvPtr importSteerBenchXML(string filePath)
     auto obtacleRegionNode = pRoot->FirstChildElement("obstacleRegion");
     while(obtacleRegionNode)
     {
+        ObstacleRegion obstacleRegion;
+        obstacleRegion.numObstacles = getInt(obtacleRegionNode->FirstChildElement("numObstacles"));
+        obstacleRegion.obstacleSize = getFloat(obtacleRegionNode->FirstChildElement("obstacleSize"));
+        obstacleRegion.obstacleHeight = getFloat(obtacleRegionNode->FirstChildElement("numObstacles"));
+        obstacleRegion.regionBounds = getBounds(obtacleRegionNode->FirstChildElement("obstacleHeight"));
 
+        env->obstacleRegions.push_back(obstacleRegion);
+        obtacleRegionNode = obtacleRegionNode->NextSiblingElement("obstacleRegion");
     }
 
     //Agents
@@ -233,7 +252,7 @@ SteerbenchEnvPtr importSteerBenchXML(string filePath)
         auto initialConditionsNode = agentRegionNode->FirstChildElement("initialConditions");
         agent.radius = getFloat(initialConditionsNode->FirstChildElement("radius"));
         agent.position = getFloat3(initialConditionsNode->FirstChildElement("position"));
-        agent.direction = getFloat3(initialConditionsNode->FirstChildElement("direction"));
+        agent.direction = getFloat3(initialConditionsNode->FirstChildElement("direction"), &agent.isDirectionRandom);
         agent.speed = getFloat(initialConditionsNode->FirstChildElement("speed"));
 
         agent.goals = getAgentGoals(agentRegionNode->FirstChildElement("goalSequence"));
@@ -246,4 +265,68 @@ SteerbenchEnvPtr importSteerBenchXML(string filePath)
 
 
     return env;
+}
+
+
+void expandSteerbenchEnvRegions(ModelEnvSpecPtr env)
+{
+    std::random_device rd;
+    std::mt19937 e2(rd());
+
+    // Expand obstacle regions
+    for( auto& obstacleRegion: env->obstacleRegions)
+    {
+        //Always square obstacle, height not used
+        auto obsWidth = obstacleRegion.obstacleSize;
+        auto regionBounds = obstacleRegion.regionBounds;
+        std::uniform_real_distribution<> distx(regionBounds.min.x, regionBounds.max.x - obsWidth);
+//        std::uniform_real_distribution<> disty(regionBounds.min.y, regionBounds.max.y - obsWidth);
+        std::uniform_real_distribution<> distz(regionBounds.min.z, regionBounds.max.z - obsWidth);
+        for(int i = 0 ; i < obstacleRegion.numObstacles; i++){
+            Bounds b;
+            b.min = make_float3(distx(e2), 0, distz(e2));
+            b.max = make_float3(b.min.x + obsWidth, 0, b.min.z + obsWidth);
+            env->obstacles.push_back(b);
+        }
+
+    }
+
+    //Expand agent regions
+    for( auto& agentRegion: env->agentRegions)
+    {
+        auto regionBounds = agentRegion.regionBounds;
+        std::uniform_real_distribution<> distx(regionBounds.min.x, regionBounds.max.x);
+//        std::uniform_real_distribution<> disty(regionBounds.min.y, regionBounds.max.y - obsWidth);
+        std::uniform_real_distribution<> distz(regionBounds.min.z, regionBounds.max.z);
+
+        for( int i = 0; i < agentRegion.numAgents; i++)
+        {
+            Agent agent;
+            agent.position = make_float3(distx(e2), 0, distz(e2));
+            agent.radius = agentRegion.radius;
+            agent.speed = agentRegion.speed;
+            if(agentRegion.isDirectionRandom){
+                agent.direction = make_float3(dist(e2), 0, dist(e2));
+            }
+            else{
+                agent.direction = agentRegion.direction;
+            }
+            agent.goals = agentRegion.goals;
+
+            env->agents.push_back(agent);
+        }
+    }
+
+
+}
+
+
+std::vector<float2> getLineFromBounds(Bounds& bounds){
+    std::vector<float2> line;
+    line.push_back(make_float2(bounds.min.x, bounds.min.z));
+    line.push_back(make_float2(bounds.max.x, bounds.min.z));
+    line.push_back(make_float2(bounds.max.x, bounds.max.z));
+    line.push_back(make_float2(bounds.min.x, bounds.max.z));
+    line.push_back(make_float2(bounds.min.x, bounds.min.z));
+    return line;
 }
