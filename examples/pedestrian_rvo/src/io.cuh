@@ -9,7 +9,7 @@
  * @return Shared pointer to the created ModelEnvSpec object
  */
 ModelEnvSpecPtr importSteerBenchXML(std::string filePath);
-void expandSteerbenchEnvRegions(ModelEnvSpecPtr env);
+void expandSpecRegions(ModelEnvSpecPtr env);
 
 /**
  * Create a counter-clockwise line of float2 to represent the boundary

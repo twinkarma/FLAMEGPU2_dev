@@ -18,11 +18,14 @@ struct ObstacleRegion{
     Bounds regionBounds;
 };
 
+#define AGENT_GOAL_SEEK_TARGET 0
+#define AGENT_GOAL_FLEE_TARGET 1
+#define AGENT_GOAL_IDLE 2
+
+
 struct AgentGoal{
     std::string targetName;
-    bool seekTarget; //If true navigate to target, false then flees target
-    bool fleeTarget;
-    bool idle;
+    int goalType;
     float3 targetLocation;
     float desiredSpeed;
     float timeDuration;
@@ -45,6 +48,8 @@ struct Agent{
     //Goals
     std::vector<AgentGoal> goals;
 
+    //Goal index obtained after agent goals have been uploaded
+    int goalIndex;
 };
 
 struct ModelEnvSpec {

@@ -130,32 +130,24 @@ std::vector<AgentGoal> getAgentGoals(XMLElement* goalSequenceNode)
 
         //Get goal type
         std::string goalName = std::string(goalNode->Value());
-        if(goalName.compare("seekDynamicTarget")){
-            goal.seekTarget = true;
-            goal.fleeTarget = false;
-            goal.idle = false;
+        if(goalName.compare("seekDynamicTarget") == 0){
+            goal.goalType = AGENT_GOAL_SEEK_TARGET;
 
         }
-        else if(goalName.compare("fleeDynamicTarget")){
-            goal.seekTarget = false;
-            goal.fleeTarget = true;
-            goal.idle = false;
+        else if(goalName.compare("fleeDynamicTarget") == 0){
+            goal.goalType = AGENT_GOAL_FLEE_TARGET;
 
         }
-        else if(goalName.compare("seekStaticTarget")){
-            goal.seekTarget = true;
-            goal.fleeTarget = false;
-            goal.idle = false;
+        else if(goalName.compare("seekStaticTarget") == 0){
+            goal.goalType = AGENT_GOAL_SEEK_TARGET;
+
         }
-        else if(goalName.compare("fleeStaticTarget")){
-            goal.seekTarget = false;
-            goal.fleeTarget = true;
-            goal.idle = false;
+        else if(goalName.compare("fleeStaticTarget") == 0){
+            goal.goalType = AGENT_GOAL_FLEE_TARGET;
+
         }
-        else if(goalName.compare("idle")){
-            goal.seekTarget = false;
-            goal.fleeTarget = false;
-            goal.idle = true;
+        else if(goalName.compare("idle") == 0){
+            goal.goalType = AGENT_GOAL_IDLE;
         }
 
 
@@ -268,7 +260,7 @@ ModelEnvSpecPtr importSteerBenchXML(string filePath)
 }
 
 
-void expandSteerbenchEnvRegions(ModelEnvSpecPtr env)
+void expandSpecRegions(ModelEnvSpecPtr env)
 {
     std::random_device rd;
     std::mt19937 e2(rd());
@@ -312,6 +304,7 @@ void expandSteerbenchEnvRegions(ModelEnvSpecPtr env)
                 agent.direction = agentRegion.direction;
             }
             agent.goals = agentRegion.goals;
+            agent.goalIndex = agentRegion.goalIndex;
 
             env->agents.push_back(agent);
         }

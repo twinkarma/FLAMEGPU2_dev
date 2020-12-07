@@ -3,13 +3,16 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <array>
 
 
 #include "flamegpu/flame_api.h"
 
 #include "io.cuh"
 #include "rvo_kernels.cuh"
+#include "goals_kernels.cuh"
 #include "RVOGraph.cuh"
+
 
 #define fg_getfloat(x) FLAMEGPU->getVariable<float>(#x)
 
@@ -122,12 +125,15 @@ void drawBounds(LineVis& pen, Bounds& bounds)
 
 }
 
+
+
 int main(int argc, const char ** argv) {
 
     ModelEnvSpecPtr envSpec = nullptr;
     try{
         envSpec = importSteerBenchXML("merseyrail.xml");
-        expandSteerbenchEnvRegions(envSpec);
+        indexAgentGoals(envSpec);
+        expandSpecRegions(envSpec);
     }catch(std::exception* e){
         printf("Could not load xml spec file ");
     }
@@ -245,10 +251,18 @@ int main(int argc, const char ** argv) {
         agent.newVariable<float>("velx", 0);
         agent.newVariable<float>("vely", 0);
         agent.newVariable<float>("radius", 0.25);
-        agent.newVariable<float>("desiredSpeed", 0);
+
+
+
+        //Goal-based behaviour variables
+        agent.newVariable<int>("goalIndex", -1);
+        agent.newVariable<int>("goalType", 0);
         agent.newVariable<float>("destx", 0);
         agent.newVariable<float>("desty", 0);
+        agent.newVariable<float>("desiredSpeed", 0);
+        agent.newVariable<float>("timeDuration", 0);
 
+        //Agent functions
         agent.newFunction("output_pedestrian_location", output_pedestrian_location).setMessageOutput("pedestrian_location");
         agent.newFunction("move", move).setMessageInput("pedestrian_location");
     }
@@ -326,10 +340,20 @@ int main(int argc, const char ** argv) {
             instance.setVariable<float>("z", agentSpec.position.z);
             instance.setVariable<float>("velx", agentVel.x);
             instance.setVariable<float>("vely", agentVel.z);
-            instance.setVariable<float>("destx", agentDes.x);
-            instance.setVariable<float>("desty", agentDes.z);
             instance.setVariable<float>("radius", agentSpec.radius);
-            instance.setVariable<float>("desiredSpeed", 0);
+
+            //Load first goal into agent
+            instance.setVariable<int>("goalIndex", agentSpec.goalIndex);
+            if(agentSpec.goals.size() > 0){
+
+                instance.setVariable<int>("goalType", agentSpec.goals[0].goalType);
+                instance.setVariable<float>("destx", agentSpec.goals[0].targetLocation.x);
+                instance.setVariable<float>("desty", agentSpec.goals[0].targetLocation.z);
+                instance.setVariable<float>("desiredSpeed", agentSpec.goals[0].desiredSpeed);
+                instance.setVariable<float>("timeDuration", agentSpec.goals[0].timeDuration);
+            }
+
+
             id += 1;
         }
         cuda_model.setPopulationData(population);
@@ -346,7 +370,10 @@ int main(int argc, const char ** argv) {
      rvoGraph->buildRVO(obstacles, getRVOObstaclePointer(), getRVOKDNodePointer());
 
 
-
+     /**
+      * Upload agent goals
+      */
+      uploadAgentGoals();
 
     /**
      * Execution
