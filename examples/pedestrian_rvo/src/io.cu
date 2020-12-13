@@ -320,6 +320,5 @@ std::vector<float2> getLineFromBounds(Bounds& bounds){
     line.push_back(make_float2(bounds.max.x, bounds.min.z));
     line.push_back(make_float2(bounds.max.x, bounds.max.z));
     line.push_back(make_float2(bounds.min.x, bounds.max.z));
-    line.push_back(make_float2(bounds.min.x, bounds.min.z));
     return line;
 }

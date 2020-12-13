@@ -1,6 +1,7 @@
 #ifndef __RVO_GRAPH__
 #define __RVO_GRAPH__
 #include <vector>
+#include <memory>
 #include "common_cuda_math.h"
 #include "rvo_struct.cuh"
 
@@ -22,14 +23,14 @@ public:
 	RVOKDNodeGSOA initialiseKdnodes(size_t size);
 
 
-	ObstacleTreeNode *recursivelyBuildObstacleTree(std::vector<RVObstacle*> &obstacles, std::vector<RVObstacle*> &globalObstacles);
+	ObstacleTreeNode *recursivelyBuildObstacleTree(RVObstacleVecPtr obstacles, RVObstacleVecPtr globalObstacles, int obsLevel = 0);
 	void recursivelyIndexObstacleTreeNode(ObstacleTreeNode * currentNode, int& index);
 	void recursivelyBuildGPUObstacleTree( ObstacleTreeNode* node, ObstacleTreeNode* parentNode, bool isLeft, RVOKDNodeGSOA& outputNodeList);
 
 	int getKDTreeDepth(int index, RVOKDNodeGSOA& nodes);
-	int addRVOObstacle(std::vector<float2> &vertices, std::vector<RVObstacle*>& obstacles);
+	int addRVOObstacle(std::vector<float2> &vertices, RVObstacleVecPtr obstacles);
 	std::vector<float2> expandObstacle(std::vector<float2> &inputObs, float expandAmount);
-	void addRVOObstacleExpanded(std::vector<float2> &vertices, bool isClosedLoop, std::vector<RVObstacle*> &obstacles);
+	void addRVOObstacleExpanded(std::vector<float2> &vertices, bool isClosedLoop, RVObstacleVecPtr obstacles);
 };
 
 

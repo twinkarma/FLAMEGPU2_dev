@@ -1,6 +1,8 @@
 #ifndef __RVO_STRUCT__
 #define __RVO_STRUCT__
 
+#include <vector>
+#include <memory>
 #include "cudahelpers/helper_math.h"
 
 struct RVObstacle {
@@ -11,6 +13,10 @@ struct RVObstacle {
 	size_t nextObstacleIndex;
 	size_t prevObstacleIndex;
 };
+
+typedef std::vector<RVObstacle*> RVObstacleVec;
+typedef std::shared_ptr<RVObstacleVec> RVObstacleVecPtr;
+
 
 
 struct RVObstacleGSOA {

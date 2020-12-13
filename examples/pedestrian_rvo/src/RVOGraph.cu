@@ -13,20 +13,20 @@ RVOGraph::~RVOGraph(void)
 
 void RVOGraph::buildRVO(std::vector<std::vector<float2>>& obstacles, void* obstacles_d, void* kdnodes_d){
 	
-	std::vector<RVObstacle*> rvoObstacles;
+	RVObstacleVecPtr rvoObstacles(new RVObstacleVec());
 
 	for( auto line : obstacles){
 		addRVOObstacle(line, rvoObstacles);
 	}
 
-	auto gpuObstacles = initialiseObstacles(rvoObstacles.size());
-	for( int i = 0; i < rvoObstacles.size(); i++){
-		gpuObstacles.id[i] = rvoObstacles[i]->id;
-		gpuObstacles.point[i] = rvoObstacles[i]->point;
-		gpuObstacles.unitDir[i] = rvoObstacles[i]->unitDir;
-		gpuObstacles.isConvex[i] = rvoObstacles[i]->isConvex;
-		gpuObstacles.nextObstacleIndex[i] = rvoObstacles[i]->nextObstacleIndex;
-		gpuObstacles.prevObstacleIndex[i] = rvoObstacles[i]->prevObstacleIndex;
+	auto gpuObstacles = initialiseObstacles(rvoObstacles->size());
+	for( int i = 0; i < rvoObstacles->size(); i++){
+		gpuObstacles.id[i] = (*rvoObstacles)[i]->id;
+		gpuObstacles.point[i] = (*rvoObstacles)[i]->point;
+		gpuObstacles.unitDir[i] = (*rvoObstacles)[i]->unitDir;
+		gpuObstacles.isConvex[i] = (*rvoObstacles)[i]->isConvex;
+		gpuObstacles.nextObstacleIndex[i] = (*rvoObstacles)[i]->nextObstacleIndex;
+		gpuObstacles.prevObstacleIndex[i] = (*rvoObstacles)[i]->prevObstacleIndex;
 	}
 
     gpuErrchk(cudaMemcpy(obstacles_d, &gpuObstacles, sizeof(gpuObstacles), cudaMemcpyHostToDevice));
@@ -373,13 +373,13 @@ RVOKDNodeGSOA RVOGraph::initialiseKdnodes(size_t size){
 
 
 
-int RVOGraph::addRVOObstacle( std::vector<float2> &vertices , std::vector<RVObstacle*> &obstacles)
+int RVOGraph::addRVOObstacle( std::vector<float2> &vertices , RVObstacleVecPtr obstacles)
 {
 	if (vertices.size() < 2) {
 		return -1;
 	}
 
-	const size_t obstacleNo = obstacles.size();
+	const size_t obstacleNo = (*obstacles).size();
 
 	for (size_t i = 0; i < vertices.size(); ++i) {
 		RVObstacle* obstacle = new RVObstacle();
@@ -387,14 +387,14 @@ int RVOGraph::addRVOObstacle( std::vector<float2> &vertices , std::vector<RVObst
 
 		//If not the first element then links to previous element
 		if (i != 0) {
-			obstacle->prevObstacleIndex = obstacles.size() - 1;
-			obstacles[obstacle->prevObstacleIndex]->nextObstacleIndex = obstacles.size();
+			obstacle->prevObstacleIndex = (*obstacles).size() - 1;
+			(*obstacles)[obstacle->prevObstacleIndex]->nextObstacleIndex = (*obstacles).size();
 		}
 
 		//If last element then links to the first element
 		if (i == vertices.size() - 1) {
 			obstacle->nextObstacleIndex = obstacleNo;
-			obstacles[obstacle->nextObstacleIndex]->prevObstacleIndex = obstacles.size();
+			(*obstacles)[obstacle->nextObstacleIndex]->prevObstacleIndex = (*obstacles).size();
 		}
 
 		obstacle->unitDir = normalize(vertices[(i == vertices.size() - 1 ? 0 : i + 1)] - vertices[i]);
@@ -410,9 +410,9 @@ int RVOGraph::addRVOObstacle( std::vector<float2> &vertices , std::vector<RVObst
 		}
 
 
-		obstacle->id = obstacles.size();
+		obstacle->id = (*obstacles).size();
 
-		obstacles.push_back(obstacle);
+		(*obstacles).push_back(obstacle);
 	}
 
 	return obstacleNo;
@@ -420,7 +420,7 @@ int RVOGraph::addRVOObstacle( std::vector<float2> &vertices , std::vector<RVObst
 
 
 
-void RVOGraph::addRVOObstacleExpanded( std::vector<float2> &vertices, bool isClosedLoop, std::vector<RVObstacle*> &obstacles )
+void RVOGraph::addRVOObstacleExpanded( std::vector<float2> &vertices, bool isClosedLoop, RVObstacleVecPtr obstacles )
 {
 	float expandBy = 0.01;
 
@@ -536,35 +536,35 @@ std::vector<float2> RVOGraph::expandObstacle( std::vector<float2> &inputObs, flo
 
 
 
-ObstacleTreeNode * RVOGraph::recursivelyBuildObstacleTree( std::vector<RVObstacle*> &obstacles , std::vector<RVObstacle*> &globalObstacles)
+ObstacleTreeNode * RVOGraph::recursivelyBuildObstacleTree( RVObstacleVecPtr obstacles , RVObstacleVecPtr globalObstacles, int obsLevel)
 {
 	float RVO_EPSILON = 0.00001f;
 
-	if (obstacles.size() == 0) {
+	if ((*obstacles).size() == 0) {
 		return NULL;
 	}
 	else {
 		ObstacleTreeNode *const node = new ObstacleTreeNode;
 
 		size_t optimalSplit = 0;
-		size_t minLeft = obstacles.size();
-		size_t minRight = obstacles.size();
+		size_t minLeft = (*obstacles).size();
+		size_t minRight = (*obstacles).size();
 
-		for (size_t i = 0; i < obstacles.size(); ++i) {
+		for (size_t i = 0; i < (*obstacles).size(); ++i) {
 			size_t leftSize = 0;
 			size_t rightSize = 0;
 
-			 RVObstacle * obstacleI1 = obstacles[i];
-			 RVObstacle * obstacleI2 = globalObstacles[obstacleI1->nextObstacleIndex];
+			 RVObstacle * obstacleI1 = (*obstacles)[i];
+			 RVObstacle * obstacleI2 = (*globalObstacles)[obstacleI1->nextObstacleIndex];
 
 			/* Compute optimal split node. */
-			for (size_t j = 0; j < obstacles.size(); ++j) {
+			for (size_t j = 0; j < (*obstacles).size(); ++j) {
 				if (i == j) {
 					continue;
 				}
 
-				RVObstacle *obstacleJ1 = obstacles[j];
-				RVObstacle *obstacleJ2 = globalObstacles[obstacleJ1->nextObstacleIndex];
+				RVObstacle *obstacleJ1 = (*obstacles)[j];
+				RVObstacle *obstacleJ2 = (*globalObstacles)[obstacleJ1->nextObstacleIndex];
 
 				const float j1LeftOfI = leftOf(obstacleI1->point, obstacleI2->point, obstacleJ1->point);
 				const float j2LeftOfI = leftOf(obstacleI1->point, obstacleI2->point, obstacleJ2->point);
@@ -593,32 +593,32 @@ ObstacleTreeNode * RVOGraph::recursivelyBuildObstacleTree( std::vector<RVObstacl
 		}
 
 		/* Build split node. */
-		std::vector<RVObstacle *> leftObstacles(minLeft);
-		std::vector<RVObstacle *> rightObstacles(minRight);
+		RVObstacleVecPtr leftObstacles( new RVObstacleVec(minLeft));
+		RVObstacleVecPtr rightObstacles( new RVObstacleVec(minRight));
 
 		size_t leftCounter = 0;
 		size_t rightCounter = 0;
 		const size_t i = optimalSplit;
 
-		RVObstacle* obstacleI1 = obstacles[i];
-		RVObstacle* obstacleI2 = globalObstacles[obstacleI1->nextObstacleIndex];
+		RVObstacle* obstacleI1 = (*obstacles)[i];
+		RVObstacle* obstacleI2 = (*globalObstacles)[obstacleI1->nextObstacleIndex];
 
-		for (size_t j = 0; j < obstacles.size(); ++j) {
+		for (size_t j = 0; j < (*obstacles).size(); ++j) {
 			if (i == j) {
 				continue;
 			}
 
-			RVObstacle* obstacleJ1 = obstacles[j];
-			RVObstacle* obstacleJ2 = globalObstacles[obstacleJ1->nextObstacleIndex];
+			RVObstacle* obstacleJ1 = (*obstacles)[j];
+			RVObstacle* obstacleJ2 = (*globalObstacles)[obstacleJ1->nextObstacleIndex];
 
 			const float j1LeftOfI = leftOf(obstacleI1->point, obstacleI2->point, obstacleJ1->point);
 			const float j2LeftOfI = leftOf(obstacleI1->point, obstacleI2->point, obstacleJ2->point);
 
 			if (j1LeftOfI >= -RVO_EPSILON && j2LeftOfI >= -RVO_EPSILON) {
-				leftObstacles[leftCounter++] = obstacles[j];
+				(*leftObstacles)[leftCounter++] = (*obstacles)[j];
 			}
 			else if (j1LeftOfI <= RVO_EPSILON && j2LeftOfI <= RVO_EPSILON) {
-				rightObstacles[rightCounter++] = obstacles[j];
+				(*rightObstacles)[rightCounter++] = (*obstacles)[j];
 			}
 			else {
 				/* Split obstacle j. */
@@ -633,27 +633,28 @@ ObstacleTreeNode * RVOGraph::recursivelyBuildObstacleTree( std::vector<RVObstacl
 				newObstacle->isConvex = 1;
 				newObstacle->unitDir = obstacleJ1->unitDir;
 
-				newObstacle->id = globalObstacles.size();
+				newObstacle->id = (*globalObstacles).size();
 
-				globalObstacles.push_back(newObstacle);
+				(*globalObstacles).push_back(newObstacle);
 
 				obstacleJ1->nextObstacleIndex = newObstacle->id;
 				obstacleJ2->prevObstacleIndex = newObstacle->id;
 
 				if (j1LeftOfI > 0.0f) {
-					leftObstacles[leftCounter++] = obstacleJ1;
-					rightObstacles[rightCounter++] = newObstacle;
+					(*leftObstacles)[leftCounter++] = obstacleJ1;
+					(*rightObstacles)[rightCounter++] = newObstacle;
 				}
 				else {
-					rightObstacles[rightCounter++] = obstacleJ1;
-					leftObstacles[leftCounter++] = newObstacle;
+					(*rightObstacles)[rightCounter++] = obstacleJ1;
+					(*leftObstacles)[leftCounter++] = newObstacle;
 				}
 			}
 		}
 
 		node->obstacle = obstacleI1;
-		node->left = recursivelyBuildObstacleTree(leftObstacles,globalObstacles);
-		node->right = recursivelyBuildObstacleTree(rightObstacles, globalObstacles);
+		obsLevel += 1;
+		node->left = recursivelyBuildObstacleTree(leftObstacles,globalObstacles, obsLevel);
+		node->right = recursivelyBuildObstacleTree(rightObstacles, globalObstacles, obsLevel);
 		return node;
 	}
 }

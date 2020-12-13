@@ -1,7 +1,7 @@
 #include "goals_kernels.cuh"
 
-#define CPU_ALLOC(allocVar, type, length) allocVar = (type*) malloc(sizeof(type)*length)
-#define GPU_ALLOC(allocVar, type, length) cudaMallocManaged(&allocVar, sizeof(type)*length);
+#define FG_CPU_ALLOC(allocVar, type, length) allocVar = (type*) malloc(sizeof(type)*length)
+#define FG_GPU_ALLOC(allocVar, type, length) cudaMallocManaged(&allocVar, sizeof(type)*length);
 
 
 struct AgentGoalGSOA{
@@ -48,21 +48,21 @@ void indexAgentGoals(ModelEnvSpecPtr envSpec){
     }
 
     goal.size = goalIndex;
-    CPU_ALLOC(goal.goalType, int, goal.size);
-    CPU_ALLOC(goal.targetLocation, float3, goal.size);
-    CPU_ALLOC(goal.desiredSpeed, float, goal.size);
-    CPU_ALLOC(goal.timeDuration, float, goal.size);
-    CPU_ALLOC(goal.nextIndex, int, goal.size);
+    FG_CPU_ALLOC(goal.goalType, int, goal.size);
+    FG_CPU_ALLOC(goal.targetLocation, float3, goal.size);
+    FG_CPU_ALLOC(goal.desiredSpeed, float, goal.size);
+    FG_CPU_ALLOC(goal.timeDuration, float, goal.size);
+    FG_CPU_ALLOC(goal.nextIndex, int, goal.size);
 
     goalIndex = 0;
     for(auto& agent: envSpec->agents){
-        int i = 0;
+        unsigned int i = 0;
         for(auto& agentGoal: agent.goals){
             goal.goalType[goalIndex] = agentGoal.goalType;
             goal.targetLocation[goalIndex] = agentGoal.targetLocation;
             goal.desiredSpeed[goalIndex] = agentGoal.desiredSpeed;
             goal.timeDuration[goalIndex] = agentGoal.timeDuration;
-            if(i < agent.goals.size() -1)
+            if(i + 1 < agent.goals.size() )
                 goal.nextIndex[goalIndex] = goalIndex + 1;
             else
                 goal.nextIndex[goalIndex] = -1;
@@ -73,13 +73,13 @@ void indexAgentGoals(ModelEnvSpecPtr envSpec){
     }
 
     for(auto& agent: envSpec->agentRegions){
-        int i = 0;
+        unsigned int i = 0;
         for(auto& agentGoal: agent.goals){
             goal.goalType[goalIndex] = agentGoal.goalType;
             goal.targetLocation[goalIndex] = agentGoal.targetLocation;
             goal.desiredSpeed[goalIndex] = agentGoal.desiredSpeed;
             goal.timeDuration[goalIndex] = agentGoal.timeDuration;
-            if(i < agent.goals.size() -1)
+            if(i + 1 < agent.goals.size() )
                 goal.nextIndex[goalIndex] = goalIndex + 1;
             else
                 goal.nextIndex[goalIndex] = -1;
@@ -94,11 +94,11 @@ void uploadAgentGoals(){
     AgentGoalGSOA goal_temp;
 
     //Allocate
-    GPU_ALLOC(goal_temp.goalType, int, goal.size);
-    GPU_ALLOC(goal_temp.targetLocation, float3, goal.size);
-    GPU_ALLOC(goal_temp.desiredSpeed, float, goal.size);
-    GPU_ALLOC(goal_temp.timeDuration, float, goal.size);
-    GPU_ALLOC(goal_temp.nextIndex, int, goal.size);
+    FG_GPU_ALLOC(goal_temp.goalType, int, goal.size);
+    FG_GPU_ALLOC(goal_temp.targetLocation, float3, goal.size);
+    FG_GPU_ALLOC(goal_temp.desiredSpeed, float, goal.size);
+    FG_GPU_ALLOC(goal_temp.timeDuration, float, goal.size);
+    FG_GPU_ALLOC(goal_temp.nextIndex, int, goal.size);
 
     //Copy
     goal_temp.size = goal.size;
