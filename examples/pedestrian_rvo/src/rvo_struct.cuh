@@ -50,6 +50,7 @@ struct RVOKDNodeGSOA {
 	int* siblingIndex;
 	int* parentIndex;
 	int* obstacleIndex;
+
 };
 
 /**
@@ -73,6 +74,12 @@ struct ObstacleTreeNode {
 	ObstacleTreeNode *right;
 
 	int index;
+
+	ObstacleTreeNode(){
+	    left = nullptr;
+	    obstacle = nullptr;
+	    right = nullptr;
+	}
 
 };
 

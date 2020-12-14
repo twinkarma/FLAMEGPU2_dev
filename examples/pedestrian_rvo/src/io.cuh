@@ -18,5 +18,5 @@ void expandSpecRegions(ModelEnvSpecPtr env);
  */
 std::vector<float2> getLineFromBounds(Bounds& bounds);
 
-
+ModelEnvSpecPtr createTestSimSpec();
 #endif //__PEDRVO_IO__

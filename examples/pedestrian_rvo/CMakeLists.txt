@@ -28,6 +28,9 @@ SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/RVOGraph.cu
         ${CMAKE_CURRENT_SOURCE_DIR}/src/io.cu
         ${CMAKE_CURRENT_SOURCE_DIR}/src/goals_kernels.cu
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/steersuite/RecFileWriter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/steersuite/Misc.cpp
+
 
 )
 

@@ -12,6 +12,7 @@
 #include "rvo_kernels.cuh"
 #include "goals_kernels.cuh"
 #include "RVOGraph.cuh"
+#include "steersuite/RecFileIO.h"
 
 
 #define env_get(x, type) FLAMEGPU->environment.get<type>(#x)
@@ -20,6 +21,16 @@
 #define agent_getInt(x) agent_get(x, int)
 #define agent_set(x, value, type) FLAMEGPU->setVariable<type>(#x, value)
 
+/**
+ *
+ *
+ * GPU Kernels
+ *
+ */
+
+/**
+ * Output the pedestrian's location
+ */
 FLAMEGPU_AGENT_FUNCTION(output_pedestrian_location, MsgNone, MsgSpatial3D) {
     // Output each agents publicly visible properties.
     FLAMEGPU->message_out.setVariable<int>("id", FLAMEGPU->getVariable<int>("id"));
@@ -33,6 +44,9 @@ FLAMEGPU_AGENT_FUNCTION(output_pedestrian_location, MsgNone, MsgSpatial3D) {
     return ALIVE;
 }
 
+/**
+ * Move pedestrian, performs goal lookup, collision avoidance then movement
+ */
 FLAMEGPU_AGENT_FUNCTION(move, MsgSpatial3D, MsgNone) {
 
     //Input
@@ -167,137 +181,113 @@ FLAMEGPU_AGENT_FUNCTION(move, MsgSpatial3D, MsgNone) {
 
 }
 
+/**
+ *
+ * HOST Code
+ *
+ */
+
+/**
+ *
+ */
+std::string recordOutputPath;
+ModelEnvSpecPtr envSpec = nullptr;
+ModelDescription* model = nullptr;
+CUDASimulation* cuda_model = nullptr;
+
+SteerLib::RecFileWriter* fileWriter = nullptr;
+
+FLAMEGPU_INIT_FUNCTION(init_func){
+    printf("Initialising simulation\n");
+
+    fileWriter = new SteerLib::RecFileWriter();
+    if(!recordOutputPath.empty()){
+        auto pedAgent = FLAMEGPU->agent("Pedestrian");
+        auto numAgent = pedAgent.count();
+        fileWriter->startRecording(numAgent, "testout.dat");
+    }
+
+
+
+
+
+}
+
+
+FLAMEGPU_STEP_FUNCTION(step_func){
+
+    if(!fileWriter->isRecording())
+        return;
+
+    auto stepCount = FLAMEGPU->getStepCounter();
+    auto timeScaler = FLAMEGPU->environment.get<float>("TIME_SCALER");
+    fileWriter->startFrame((float)stepCount*timeScaler, timeScaler);
+    auto pedAgent = FLAMEGPU->agent("Pedestrian");
+    AgentPopulation pop(model->getAgent("Pedestrian"));
+    cuda_model->getPopulationData(pop);
+    auto currentPedNum = pop.getCurrentListSize();
+    for( int i = 0; i < currentPedNum; i++){
+        auto agent = pop.getInstanceAt(i);
+        int id = agent.getVariable<int>("id");
+        float x = agent.getVariable<float>("x");
+        float y = agent.getVariable<float>("y");
+        float z = agent.getVariable<float>("z");
+        float dirx = agent.getVariable<float>("velx");
+        float diry = 0.0f;
+        float dirz = agent.getVariable<float>("vely");
+        float goalx = agent.getVariable<float>("destx");
+        float goaly = 0.0f;
+        float goalz = agent.getVariable<float>("desty");
+        float radius = agent.getVariable<float>("radius");
+        fileWriter->setAgentInfoForCurrentFrame(i, x, y, z, dirx, diry, dirz, goalx, goaly, goalz, radius, true);
+    }
+    fileWriter->finishFrame();
+
+
+}
+
+
+
+int exitNow = 0;
+
+FLAMEGPU_EXIT_CONDITION(exit_condition){
+//    exitNow ++;
+//    if(exitNow > 50) return EXIT;
+
+    return CONTINUE;
+}
+
+
+FLAMEGPU_EXIT_FUNCTION(exit_func){
+    printf("Exiting simulation\n");
+    if(fileWriter->isRecording())
+        fileWriter->finishRecording();
+
+}
+
+/**
+ * Draw bounds using LineVis pen for visualisation
+ * @param pen
+ * @param bounds
+ */
 void drawBounds(LineVis& pen, Bounds& bounds)
 {
     pen.addVertex(bounds.max.x, 0, bounds.max.z);
     pen.addVertex(bounds.min.x, 0, bounds.max.z);
     pen.addVertex(bounds.max.x, 0, bounds.min.z);
     pen.addVertex(bounds.min.x, 0, bounds.min.z);
-
     pen.addVertex(bounds.max.x, 0, bounds.max.z);
     pen.addVertex(bounds.max.x, 0, bounds.min.z);
     pen.addVertex(bounds.min.x, 0, bounds.max.z);
     pen.addVertex(bounds.min.x, 0, bounds.min.z);
-
 }
 
-ModelEnvSpecPtr createTestSimSpec(){
-    ModelEnvSpecPtr envSpec(new ModelEnvSpec());
-    //Create agents by default
-    envSpec->envBounds.min = make_float3(-50, -5, -50);
-    envSpec->envBounds.max = make_float3(50, 5, 50);
-
-    //Create obstacles
-    float subDiv = 2;
-    for(int i = 0 ; i < subDiv; i++){
-        for( int j = 0; j < subDiv; j++){
-            float envWidth = envSpec->envBounds.max.x - envSpec->envBounds.min.x;
-            float envHeight = envSpec->envBounds.max.z - envSpec->envBounds.min.z;
-            float xSpace = envWidth/4.0f;
-            float ySpace = envHeight/4.0f;
-            float offx = i*envWidth*0.5f + xSpace + envSpec->envBounds.min.x;
-            float offy = j*envHeight*0.5f + ySpace + envSpec->envBounds.min.z;
-            float length = 10;
-            Bounds obs;
-            obs.min = make_float3(offx, 0, offy);
-            obs.max = make_float3(offx + length, 0, offy + length);
-            envSpec->obstacles.push_back(obs);
-        }
-    }
-
-    //Merseyrail env
-//            Bounds obs0, obs1, obs2, obs3, obs4, obs5;
-//            obs0.min = make_float3(0, 0, 0);
-//            obs0.max = make_float3(0.1, 1.0, 12.0);
-//            obs1.min = make_float3(0, 0, 12);
-//            obs1.max = make_float3( 30, 1, 12.1);
-//            obs2.min = make_float3( 30, 0, 0);
-//            obs2.max = make_float3(30.1, 1.0, 12.0);
-//            obs3.min = make_float3( 0, 0, 0);
-//            obs3.max = make_float3(2, 1, 0.1);
-//            obs4.min = make_float3(4.0, 0.0, 0.0);
-//            obs4.max = make_float3(7.0, 1.0, 0.1);
-//            obs5.min = make_float3(9.0, 0.0, 0.0);
-//            obs5.max = make_float3(30.0, 1.0, 0.1);
-//            envSpec->obstacles.push_back(obs0);
-//            envSpec->obstacles.push_back(obs1);
-//            envSpec->obstacles.push_back(obs2);
-//            envSpec->obstacles.push_back(obs3);
-//            envSpec->obstacles.push_back(obs4);
-//            envSpec->obstacles.push_back(obs5);
-
-
-    //Create agents
-    int w = 10;
-    int h = 10;
-    float envWidth = envSpec->envBounds.max.x - envSpec->envBounds.min.x;
-    float envHeight = envSpec->envBounds.max.z - envSpec->envBounds.min.z;
-    float x_space = (envWidth*0.1f)/(float)w ;
-    float y_space = (envHeight*0.1f)/(float)h;
-    int populationSize = w*h;
-
-
-    auto ag = AgentGoal();
-    ag.goalType = AGENT_GOAL_FLEE_TARGET;
-    ag.desiredSpeed = 2.0;
-    ag.timeDuration = 3;
-    ag.targetLocation = make_float3(25, 0, 0);
-
-    auto ag1 = AgentGoal();
-    ag1.goalType = AGENT_GOAL_IDLE;
-    ag1.desiredSpeed = 2.0;
-    ag1.timeDuration = 3;
-    ag1.targetLocation = make_float3(25, 0, 0);
-
-    auto ag2 = AgentGoal();
-    ag2.goalType = AGENT_GOAL_SEEK_TARGET;
-    ag2.desiredSpeed = 2.0;
-    ag2.timeDuration = 1000;
-    ag2.targetLocation = make_float3(25, 0, 0);
-
-
-
-    std::default_random_engine rng;
-    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-//            for(int i = 0; i < w; i++){
-//                for(int j = 0; j < h; j++){
-//                    Agent agent;
-//                    float x = (float)i*x_space;// - (envWidth*0.5f);
-//                    float y = (float)j*y_space;// - (envHeight*0.5f);
-//                    agent.position = make_float3(x, 0, y);
-//                    agent.radius = 0.3;
-//                    agent.speed = 2.0f;
-//                    agent.direction = make_float3(dist(rng), 0, dist(rng));
-//                    agent.goals.push_back(ag);
-//                    agent.goals.push_back(ag1);
-//                    agent.goals.push_back(ag2);
-//                    envSpec->agents.push_back(agent);
-//
-//
-//                }
-//            }
-
-    Agent agentRegion;
-    agentRegion.numAgents = 10;
-    agentRegion.regionBounds.min = make_float3(0,0,0);
-    agentRegion.regionBounds.max = make_float3(10,0,10);
-    agentRegion.radius = 0.3;
-    agentRegion.speed = 2.0f;
-    agentRegion.direction = make_float3(dist(rng), 0, dist(rng));
-    agentRegion.goals.push_back(ag);
-    agentRegion.goals.push_back(ag1);
-    agentRegion.goals.push_back(ag2);
-    envSpec->agentRegions.push_back(agentRegion);
-
-    return envSpec;
-}
 
 int main(int argc, const char ** argv) {
 
-
-
-    ModelEnvSpecPtr envSpec = nullptr;
-
+    /**
+     * Get initialisation parameters
+     */
     for(int i = 0; i < argc; i++){
         std::string arg(argv[i]);
 
@@ -336,8 +326,6 @@ int main(int argc, const char ** argv) {
             if(envSize.y <= 0)
                 envSpec->envBounds.min.y = -envCommRadius;
             envSpec->envBounds.max.y = envCommRadius;
-
-            indexAgentGoals(envSpec);
             expandSpecRegions(envSpec);
         }
         else{
@@ -345,21 +333,18 @@ int main(int argc, const char ** argv) {
             return 1;
         }
 
-
-
-
-
         /**
          * Create pedestrian model
          *
          */
-        ModelDescription model("pedestrian_rvo");
+        model = new ModelDescription("pedestrian_rvo");
+
 
         /**
          * GLOBALS
          */
         {
-            EnvironmentDescription &env = model.Environment();
+            EnvironmentDescription &env = model->Environment();
             env.add("TIME_SCALER", 0.02f);
             env.add("TIME_HORIZON", 0.5f);
             env.add("TIME_HORIZON_OBSTACLE", 2.0f);
@@ -372,8 +357,8 @@ int main(int argc, const char ** argv) {
          *
          */
         {
-            EnvironmentDescription &env = model.Environment();
-            MsgSpatial3D::Description &message = model.newMessage<MsgSpatial3D>("pedestrian_location");
+            EnvironmentDescription &env = model->Environment();
+            MsgSpatial3D::Description &message = model->newMessage<MsgSpatial3D>("pedestrian_location");
             // Set the range and bounds.
             message.setRadius(envCommRadius);
             message.setMin(envSpec->envBounds.min.x, envSpec->envBounds.min.y, envSpec->envBounds.min.z);
@@ -395,7 +380,7 @@ int main(int argc, const char ** argv) {
          *
          */
         {
-            AgentDescription &agent = model.newAgent("Pedestrian");
+            AgentDescription &agent = model->newAgent("Pedestrian");
             agent.newVariable<int>("id");
             agent.newVariable<float>("x", 0);
             agent.newVariable<float>("y", 0);
@@ -420,32 +405,45 @@ int main(int argc, const char ** argv) {
         }
 
         /**
+         * Model event handlers
+         */
+        {
+            model->addInitFunction(init_func);
+            model->addStepFunction(step_func);
+            model->addExitFunction(exit_func);
+            model->addExitCondition(exit_condition);
+        }
+
+
+
+        /**
         * Control flow
         *
         */
         {
-            LayerDescription &layer = model.newLayer();
+            LayerDescription &layer = model->newLayer();
             layer.addAgentFunction(output_pedestrian_location);
         }
         {
-            LayerDescription &layer = model.newLayer();
+            LayerDescription &layer = model->newLayer();
             layer.addAgentFunction(move);
         }
+
 
         /**
         * Model runner
         *
         */
-        CUDASimulation cuda_model(model);
+        cuda_model = new CUDASimulation(*model);
 
 
         /**
         * Visualisation
         *
         */
-        ModelVis &visualisation = cuda_model.getVisualisation();
+        ModelVis &visualisation = cuda_model->getVisualisation();
         {
-            EnvironmentDescription &env = model.Environment();
+            EnvironmentDescription &env = model->Environment();
             float envWidth = envSpec->envBounds.max.x - envSpec->envBounds.min.x;
             const float INIT_CAM = envSpec->envBounds.max.x * 1.25f;
             visualisation.setInitialCameraLocation(INIT_CAM, INIT_CAM, INIT_CAM);
@@ -461,8 +459,27 @@ int main(int argc, const char ** argv) {
                 drawBounds(pen, envSpec->envBounds);
 
                 //Visualise obstacles
-                for( auto& obs : envSpec->obstacles){
-                    drawBounds(pen, obs);
+                if(envSpec->obstacles.size() > 0){
+                    auto obsPen = visualisation.newLineSketch(0.3, 0.3, 1, 0.8f);
+                    for( auto& obs : envSpec->obstacles){
+                        drawBounds(obsPen, obs);
+                    }
+                }
+
+                //Visualise obstacle regions
+                if(envSpec->obstacleRegions.size() >0){
+                    auto obsRegionPen = visualisation.newLineSketch(0.6, 0.6, 1, 0.2f);  // white
+                    for( auto & obsRegion: envSpec->obstacleRegions){
+                        drawBounds(obsRegionPen, obsRegion.regionBounds);
+                    }
+                }
+
+                //Visualise agent regions
+                if(envSpec->agentRegions.size() > 0){
+                    auto agentRegionPen = visualisation.newLineSketch(0.3, 1, 0.3, 0.2f);  // white
+                    for( auto & agentRegion: envSpec->agentRegions){
+                        drawBounds(agentRegionPen, agentRegion.regionBounds);
+                    }
                 }
             }
 
@@ -470,14 +487,14 @@ int main(int argc, const char ** argv) {
         visualisation.activate();
 
         // Initialisation
-        cuda_model.initialise(1, argv);
+        cuda_model->initialise(1, argv);
 
         // Generate a population from spec
         {
 
             int populationSize = envSpec->agents.size();
             int id = 0;
-            AgentPopulation population(model.Agent("Pedestrian"), populationSize);
+            AgentPopulation population(model->Agent("Pedestrian"), populationSize);
             for(auto& agentSpec: envSpec->agents)
             {
                 auto agentVel = agentSpec.direction*agentSpec.speed;
@@ -493,19 +510,18 @@ int main(int argc, const char ** argv) {
 
                 //Load first goal into agent
                 instance.setVariable<int>("goalIndex", agentSpec.goalIndex);
-                if(agentSpec.goals.size() > 0){
+                if(agentSpec.goalIndex > -1){
 
-                    instance.setVariable<int>("goalType", agentSpec.goals[0].goalType);
-                    instance.setVariable<float>("destx", agentSpec.goals[0].targetLocation.x);
-                    instance.setVariable<float>("desty", agentSpec.goals[0].targetLocation.z);
-                    instance.setVariable<float>("desiredSpeed", agentSpec.goals[0].desiredSpeed);
-                    instance.setVariable<float>("timeDuration", agentSpec.goals[0].timeDuration);
+                    instance.setVariable<int>("goalType", envSpec->agentGoals[agentSpec.goalIndex].goalType);
+                    instance.setVariable<float>("destx", envSpec->agentGoals[agentSpec.goalIndex].targetLocation.x);
+                    instance.setVariable<float>("desty", envSpec->agentGoals[agentSpec.goalIndex].targetLocation.z);
+                    instance.setVariable<float>("desiredSpeed", envSpec->agentGoals[agentSpec.goalIndex].desiredSpeed);
+                    instance.setVariable<float>("timeDuration", envSpec->agentGoals[agentSpec.goalIndex].timeDuration);
                 }
-
 
                 id += 1;
             }
-            cuda_model.setPopulationData(population);
+            cuda_model->setPopulationData(population);
         }
 
         /**
@@ -516,18 +532,18 @@ int main(int argc, const char ** argv) {
         std::vector<std::vector<float2>> obstacles;
         for( auto& obs: envSpec->obstacles)
             obstacles.push_back(getLineFromBounds(obs));
-        rvoGraph->buildRVO(obstacles, getRVOObstaclePointer(), getRVOKDNodePointer());
-
+        rvoGraph->buildRVO(obstacles);
+        rvoGraph->uploadRVOToGPU(getRVOObstaclePointer(), getRVOKDNodePointer());
 
         /**
          * Upload agent goals
          */
-        uploadAgentGoals();
+        uploadAgentGoals(envSpec);
 
         /**
          * Execution
          */
-        cuda_model.simulate();
+        cuda_model->simulate();
 
         visualisation.join();
 
@@ -536,8 +552,5 @@ int main(int argc, const char ** argv) {
         printf("Error: %s", e->what());
     }
 
-
-
     return 0;
-
 }

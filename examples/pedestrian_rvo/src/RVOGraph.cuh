@@ -8,19 +8,22 @@
 
 class RVOGraph
 {
+private:
 
+    RVObstacleVecPtr  rvoObstacles;
+    ObstacleTreeNode* obsKdNode;
+    int kdNodeCount;
 
 
 public:
 	RVOGraph(void);
 	~RVOGraph(void);
 
-	void buildRVO(std::vector<std::vector<float2>>& obstacles, void* obstacles_d, void* kdnodes_d);
+	void buildRVO(std::vector<std::vector<float2>>& obstacles);
+	void uploadRVOToGPU(void* obstacles_d, void* kdnodes_d);
 
-	// void buildRVO(Scene* scene, NavigationDataStructs& navData);
-	// std::vector<RVObstacle*> buildRVOObstacles(Scene* scene);
-	RVObstacleGSOA initialiseObstacles(size_t size);
-	RVOKDNodeGSOA initialiseKdnodes(size_t size);
+	RVObstacleGSOA initialiseGPUObstacles(size_t size);
+	RVOKDNodeGSOA initialiseGPUKdnodes(size_t size);
 
 
 	ObstacleTreeNode *recursivelyBuildObstacleTree(RVObstacleVecPtr obstacles, RVObstacleVecPtr globalObstacles, int obsLevel = 0);
@@ -29,8 +32,7 @@ public:
 
 	int getKDTreeDepth(int index, RVOKDNodeGSOA& nodes);
 	int addRVOObstacle(std::vector<float2> &vertices, RVObstacleVecPtr obstacles);
-	std::vector<float2> expandObstacle(std::vector<float2> &inputObs, float expandAmount);
-	void addRVOObstacleExpanded(std::vector<float2> &vertices, bool isClosedLoop, RVObstacleVecPtr obstacles);
+
 };
 
 

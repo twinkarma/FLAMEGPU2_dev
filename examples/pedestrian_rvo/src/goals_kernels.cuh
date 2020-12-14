@@ -11,7 +11,6 @@ __device__ void getAgentGoal(int goalIndex,
 
 __device__ int nextAgentGoalIndex(int goalIndex);
 
-void indexAgentGoals(ModelEnvSpecPtr envSpec);
-void uploadAgentGoals();
+void uploadAgentGoals(ModelEnvSpecPtr envSpec);
 
 #endif //__GOALS_KERNELS__

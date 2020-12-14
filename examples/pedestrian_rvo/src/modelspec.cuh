@@ -29,6 +29,7 @@ struct AgentGoal{
     float3 targetLocation;
     float desiredSpeed;
     float timeDuration;
+    int nextIndex;
 };
 
 
@@ -45,10 +46,6 @@ struct Agent{
     float3 direction;
     bool isDirectionRandom;
 
-    //Goals
-    std::vector<AgentGoal> goals;
-
-    //Goal index obtained after agent goals have been uploaded
     int goalIndex;
 };
 
@@ -58,6 +55,7 @@ struct ModelEnvSpec {
     std::vector<ObstacleRegion> obstacleRegions;
     std::vector<Agent> agents;
     std::vector<Agent> agentRegions;
+    std::vector<AgentGoal> agentGoals;
 };
 
 typedef std::shared_ptr<ModelEnvSpec> ModelEnvSpecPtr;
