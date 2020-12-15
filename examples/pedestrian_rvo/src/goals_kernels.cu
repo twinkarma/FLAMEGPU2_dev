@@ -25,7 +25,7 @@ __device__ int nextAgentGoalIndex(int goalIndex){
     return goal_d.nextIndex[goalIndex];
 }
 
-void uploadAgentGoals(ModelEnvSpecPtr envSpec){
+void uploadAgentGoals(SimulationSpecPtr envSpec){
     AgentGoalGSOA goal_temp;
     goal_temp.size = envSpec->agentGoals.size();
 

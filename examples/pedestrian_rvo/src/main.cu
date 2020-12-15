@@ -34,9 +34,9 @@
 FLAMEGPU_AGENT_FUNCTION(output_pedestrian_location, MsgNone, MsgSpatial3D) {
     // Output each agents publicly visible properties.
     FLAMEGPU->message_out.setVariable<int>("id", FLAMEGPU->getVariable<int>("id"));
-     FLAMEGPU->message_out.setVariable<float>("x", FLAMEGPU->getVariable<float>("x"));
-     FLAMEGPU->message_out.setVariable<float>("y", FLAMEGPU->getVariable<float>("y"));
-     FLAMEGPU->message_out.setVariable<float>("z", FLAMEGPU->getVariable<float>("z"));
+    FLAMEGPU->message_out.setVariable<float>("x", FLAMEGPU->getVariable<float>("x"));
+    FLAMEGPU->message_out.setVariable<float>("y", FLAMEGPU->getVariable<float>("y"));
+    FLAMEGPU->message_out.setVariable<float>("z", FLAMEGPU->getVariable<float>("z"));
     FLAMEGPU->message_out.setVariable<float>("velx", FLAMEGPU->getVariable<float>("velx"));
     FLAMEGPU->message_out.setVariable<float>("vely", FLAMEGPU->getVariable<float>("vely"));
     FLAMEGPU->message_out.setVariable<float>("radius", FLAMEGPU->getVariable<float>("radius"));
@@ -191,26 +191,21 @@ FLAMEGPU_AGENT_FUNCTION(move, MsgSpatial3D, MsgNone) {
  *
  */
 std::string recordOutputPath;
-ModelEnvSpecPtr envSpec = nullptr;
+SimulationSpecPtr simSpec = nullptr;
 ModelDescription* model = nullptr;
-CUDASimulation* cuda_model = nullptr;
+CUDASimulation* cudaSim = nullptr;
 
 SteerLib::RecFileWriter* fileWriter = nullptr;
 
 FLAMEGPU_INIT_FUNCTION(init_func){
     printf("Initialising simulation\n");
-
     fileWriter = new SteerLib::RecFileWriter();
     if(!recordOutputPath.empty()){
         auto pedAgent = FLAMEGPU->agent("Pedestrian");
         auto numAgent = pedAgent.count();
-        fileWriter->startRecording(numAgent, "testout.dat");
+        fileWriter->startRecording(numAgent, recordOutputPath);
+        printf("Started recording simulation at file %s\n", recordOutputPath.c_str());
     }
-
-
-
-
-
 }
 
 
@@ -224,9 +219,9 @@ FLAMEGPU_STEP_FUNCTION(step_func){
     fileWriter->startFrame((float)stepCount*timeScaler, timeScaler);
     auto pedAgent = FLAMEGPU->agent("Pedestrian");
     AgentPopulation pop(model->getAgent("Pedestrian"));
-    cuda_model->getPopulationData(pop);
+    cudaSim->getPopulationData(pop);
     auto currentPedNum = pop.getCurrentListSize();
-    for( int i = 0; i < currentPedNum; i++){
+    for(unsigned int i = 0; i < currentPedNum; i++){
         auto agent = pop.getInstanceAt(i);
         int id = agent.getVariable<int>("id");
         float x = agent.getVariable<float>("x");
@@ -248,21 +243,21 @@ FLAMEGPU_STEP_FUNCTION(step_func){
 
 
 
-int exitNow = 0;
-
 FLAMEGPU_EXIT_CONDITION(exit_condition){
-//    exitNow ++;
-//    if(exitNow > 50) return EXIT;
-
+    //Leaving this blank for now
     return CONTINUE;
 }
 
 
 FLAMEGPU_EXIT_FUNCTION(exit_func){
-    printf("Exiting simulation\n");
-    if(fileWriter->isRecording())
+    if(fileWriter->isRecording()){
         fileWriter->finishRecording();
+        printf("Stopped recording simulation\n");
+    }
 
+
+
+    printf("Exiting simulation\n");
 }
 
 /**
@@ -282,8 +277,15 @@ void drawBounds(LineVis& pen, Bounds& bounds)
     pen.addVertex(bounds.min.x, 0, bounds.min.z);
 }
 
-
+/**
+ * Pedestrian RVO model
+ * @param argc
+ * @param argv
+ * @return
+ */
 int main(int argc, const char ** argv) {
+
+    std::vector<const char*> fgpuArgs;
 
     /**
      * Get initialisation parameters
@@ -291,16 +293,26 @@ int main(int argc, const char ** argv) {
     for(int i = 0; i < argc; i++){
         std::string arg(argv[i]);
 
-        if(arg.compare("-m") == 0 || arg.compare("--m") == 0){
+        if(arg.compare("-m") == 0 || arg.compare("--model") == 0){
             if(i + 1 < argc){
-                auto modelFilePath = argv[i+1];
-                printf("Loading xml spec %s", modelFilePath);
+                auto modelFilePath = argv[++i];
+                printf("Loading xml spec %s\n", modelFilePath);
                 try{
-                    envSpec = importSteerBenchXML(modelFilePath);
+                    simSpec = importSteerBenchXML(modelFilePath);
                 }catch(std::exception* e){
                     printf("Could not load xml spec file %s", modelFilePath);
+                    exit(1);
                 }
             }
+        }
+        else if(arg.compare("-o") == 0 || arg.compare("--output") == 0){
+            if(i + 1 < argc){
+                auto outputFilePath = argv[++i];
+                recordOutputPath = std::string(outputFilePath);
+            }
+        }
+        else{
+            fgpuArgs.push_back(argv[i]);
         }
     }
 
@@ -313,20 +325,20 @@ int main(int argc, const char ** argv) {
         float separationRadius = 0.5f;
 
 
-        if(!envSpec)
+        if(!simSpec)
         {
-            printf("No initial environment settings, running test case");
-            envSpec = createTestSimSpec();
+            printf("No initial environment settings, running test case\n");
+            simSpec = createTestSimSpec();
         }
 
-        if(envSpec){
+        if(simSpec){
 
             //Check that environment has height
-            auto envSize = envSpec->envBounds.max - envSpec->envBounds.min;
+            auto envSize = simSpec->envBounds.max - simSpec->envBounds.min;
             if(envSize.y <= 0)
-                envSpec->envBounds.min.y = -envCommRadius;
-            envSpec->envBounds.max.y = envCommRadius;
-            expandSpecRegions(envSpec);
+                simSpec->envBounds.min.y = -envCommRadius;
+            simSpec->envBounds.max.y = envCommRadius;
+            expandSpecRegions(simSpec);
         }
         else{
             printf("No model environment spec");
@@ -361,8 +373,8 @@ int main(int argc, const char ** argv) {
             MsgSpatial3D::Description &message = model->newMessage<MsgSpatial3D>("pedestrian_location");
             // Set the range and bounds.
             message.setRadius(envCommRadius);
-            message.setMin(envSpec->envBounds.min.x, envSpec->envBounds.min.y, envSpec->envBounds.min.z);
-            message.setMax(envSpec->envBounds.max.x, envSpec->envBounds.max.z, envSpec->envBounds.max.z);
+            message.setMin(simSpec->envBounds.min.x, simSpec->envBounds.min.y, simSpec->envBounds.min.z);
+            message.setMax(simSpec->envBounds.max.x, simSpec->envBounds.max.z, simSpec->envBounds.max.z);
 
             // A message to hold the location of an agent.
             message.newVariable<int>("id");
@@ -414,8 +426,6 @@ int main(int argc, const char ** argv) {
             model->addExitCondition(exit_condition);
         }
 
-
-
         /**
         * Control flow
         *
@@ -434,20 +444,21 @@ int main(int argc, const char ** argv) {
         * Model runner
         *
         */
-        cuda_model = new CUDASimulation(*model);
+        cudaSim = new CUDASimulation(*model);
 
 
         /**
         * Visualisation
         *
         */
-        ModelVis &visualisation = cuda_model->getVisualisation();
+        ModelVis &visualisation = cudaSim->getVisualisation();
         {
             EnvironmentDescription &env = model->Environment();
-            float envWidth = envSpec->envBounds.max.x - envSpec->envBounds.min.x;
-            const float INIT_CAM = envSpec->envBounds.max.x * 1.25f;
+            float envWidth = simSpec->envBounds.max.x - simSpec->envBounds.min.x;
+            const float INIT_CAM = simSpec->envBounds.max.x * 1.25f;
             visualisation.setInitialCameraLocation(INIT_CAM, INIT_CAM, INIT_CAM);
             visualisation.setCameraSpeed(0.002f * envWidth);
+            visualisation.setClearColor(0.8, 0.8, 0.8);
             auto &ped_agt = visualisation.addAgent("Pedestrian");
             // Position vars are named x, y, z; so they are used by default
             ped_agt.setModel(Stock::Models::ICOSPHERE);
@@ -456,28 +467,28 @@ int main(int argc, const char ** argv) {
             //Env bounds
             {
                 auto pen = visualisation.newLineSketch(1, 1, 1, 0.2f);  // white
-                drawBounds(pen, envSpec->envBounds);
+                drawBounds(pen, simSpec->envBounds);
 
                 //Visualise obstacles
-                if(envSpec->obstacles.size() > 0){
+                if(simSpec->obstacles.size() > 0){
                     auto obsPen = visualisation.newLineSketch(0.3, 0.3, 1, 0.8f);
-                    for( auto& obs : envSpec->obstacles){
+                    for( auto& obs : simSpec->obstacles){
                         drawBounds(obsPen, obs);
                     }
                 }
 
                 //Visualise obstacle regions
-                if(envSpec->obstacleRegions.size() >0){
+                if(simSpec->obstacleRegions.size() > 0){
                     auto obsRegionPen = visualisation.newLineSketch(0.6, 0.6, 1, 0.2f);  // white
-                    for( auto & obsRegion: envSpec->obstacleRegions){
+                    for( auto & obsRegion: simSpec->obstacleRegions){
                         drawBounds(obsRegionPen, obsRegion.regionBounds);
                     }
                 }
 
                 //Visualise agent regions
-                if(envSpec->agentRegions.size() > 0){
+                if(simSpec->agentRegions.size() > 0){
                     auto agentRegionPen = visualisation.newLineSketch(0.3, 1, 0.3, 0.2f);  // white
-                    for( auto & agentRegion: envSpec->agentRegions){
+                    for( auto & agentRegion: simSpec->agentRegions){
                         drawBounds(agentRegionPen, agentRegion.regionBounds);
                     }
                 }
@@ -487,15 +498,15 @@ int main(int argc, const char ** argv) {
         visualisation.activate();
 
         // Initialisation
-        cuda_model->initialise(1, argv);
+        cudaSim->initialise(fgpuArgs.size(), &fgpuArgs[0]);
 
         // Generate a population from spec
         {
 
-            int populationSize = envSpec->agents.size();
+            int populationSize = simSpec->agents.size();
             int id = 0;
             AgentPopulation population(model->Agent("Pedestrian"), populationSize);
-            for(auto& agentSpec: envSpec->agents)
+            for(auto& agentSpec: simSpec->agents)
             {
                 auto agentVel = agentSpec.direction*agentSpec.speed;
 
@@ -512,16 +523,16 @@ int main(int argc, const char ** argv) {
                 instance.setVariable<int>("goalIndex", agentSpec.goalIndex);
                 if(agentSpec.goalIndex > -1){
 
-                    instance.setVariable<int>("goalType", envSpec->agentGoals[agentSpec.goalIndex].goalType);
-                    instance.setVariable<float>("destx", envSpec->agentGoals[agentSpec.goalIndex].targetLocation.x);
-                    instance.setVariable<float>("desty", envSpec->agentGoals[agentSpec.goalIndex].targetLocation.z);
-                    instance.setVariable<float>("desiredSpeed", envSpec->agentGoals[agentSpec.goalIndex].desiredSpeed);
-                    instance.setVariable<float>("timeDuration", envSpec->agentGoals[agentSpec.goalIndex].timeDuration);
+                    instance.setVariable<int>("goalType", simSpec->agentGoals[agentSpec.goalIndex].goalType);
+                    instance.setVariable<float>("destx", simSpec->agentGoals[agentSpec.goalIndex].targetLocation.x);
+                    instance.setVariable<float>("desty", simSpec->agentGoals[agentSpec.goalIndex].targetLocation.z);
+                    instance.setVariable<float>("desiredSpeed", simSpec->agentGoals[agentSpec.goalIndex].desiredSpeed);
+                    instance.setVariable<float>("timeDuration", simSpec->agentGoals[agentSpec.goalIndex].timeDuration);
                 }
 
                 id += 1;
             }
-            cuda_model->setPopulationData(population);
+            cudaSim->setPopulationData(population);
         }
 
         /**
@@ -530,7 +541,7 @@ int main(int argc, const char ** argv) {
          */
         auto rvoGraph = new RVOGraph();
         std::vector<std::vector<float2>> obstacles;
-        for( auto& obs: envSpec->obstacles)
+        for( auto& obs: simSpec->obstacles)
             obstacles.push_back(getLineFromBounds(obs));
         rvoGraph->buildRVO(obstacles);
         rvoGraph->uploadRVOToGPU(getRVOObstaclePointer(), getRVOKDNodePointer());
@@ -538,12 +549,12 @@ int main(int argc, const char ** argv) {
         /**
          * Upload agent goals
          */
-        uploadAgentGoals(envSpec);
+        uploadAgentGoals(simSpec);
 
         /**
          * Execution
          */
-        cuda_model->simulate();
+        cudaSim->simulate();
 
         visualisation.join();
 

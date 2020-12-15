@@ -105,6 +105,11 @@ float3 getFloat3(XMLElement* node, bool* isRandom = nullptr)
 }
 
 
+/**
+ * Get a Bounds object from a node where its children xmin, xmax, ymin, ymax, zmin, and zmax.
+ * @param node
+ * @return Bounds Bounds object
+ */
 Bounds getBounds(XMLElement * node)
 {
     auto xmin = node->FirstChildElement("xmin")->FloatText(0);
@@ -120,6 +125,12 @@ Bounds getBounds(XMLElement * node)
     return bounds;
 }
 
+/**
+ * Get a sequence of agent goals from a goalSequence xml element
+ * @param goalSequenceNode A goalSequence xml element node
+ * @param goalsVector A global vector of agent goals
+ * @return int The starting index position in the goalsVector of the retrieved goal
+ */
 int getAgentGoals(XMLElement* goalSequenceNode, std::vector<AgentGoal> &goalsVector)
 {
     int goalIndex = goalsVector.size();
@@ -173,9 +184,14 @@ int getAgentGoals(XMLElement* goalSequenceNode, std::vector<AgentGoal> &goalsVec
     return goalIndex;
 }
 
-ModelEnvSpecPtr importSteerBenchXML(string filePath)
+/**
+ * Parse a steersuite test case format xml into a SimulationSpec
+ * @param filePath Path to the xml file
+ * @return Shared pointer to a SimulationSpec that contains all information to create a test case
+ */
+SimulationSpecPtr importSteerBenchXML(string filePath)
 {
-    ModelEnvSpecPtr env(new ModelEnvSpec());
+    SimulationSpecPtr env(new SimulationSpec());
 
     XMLDocument doc;
     XMLError errorId = doc.LoadFile(filePath.c_str());
@@ -276,8 +292,13 @@ ModelEnvSpecPtr importSteerBenchXML(string filePath)
     return env;
 }
 
-
-void expandSpecRegions(ModelEnvSpecPtr env)
+/**
+ * AgentRegions and ObstacleRegions allows the declaration of multiple pedestrian agents or obstacles in single element.
+ * This functions expands these regions, creating conrete agents and obstacles and adds them to the agents and obstacles
+ * vector respectively.
+ * @param env Spec that has agentRegion or obstacleRegion objects
+ */
+void expandSpecRegions(SimulationSpecPtr env)
 {
     std::random_device rd;
     std::mt19937 e2(rd());
@@ -330,7 +351,11 @@ void expandSpecRegions(ModelEnvSpecPtr env)
 
 }
 
-
+/**
+ * Create a counter-clockwise line of float2 to represent the boundary
+ * @param bounds
+ * @return
+ */
 std::vector<float2> getLineFromBounds(Bounds& bounds){
     std::vector<float2> line;
     line.push_back(make_float2(bounds.min.x, bounds.min.z));
@@ -340,62 +365,36 @@ std::vector<float2> getLineFromBounds(Bounds& bounds){
     return line;
 }
 
-ModelEnvSpecPtr createTestSimSpec(){
-    ModelEnvSpecPtr envSpec(new ModelEnvSpec());
+/**
+ * Create an example test case (used for when spec xml is not defined)
+ * @return
+ */
+SimulationSpecPtr createTestSimSpec(){
+    SimulationSpecPtr simSpec(new SimulationSpec());
     //Create agents by default
-    envSpec->envBounds.min = make_float3(-50, -5, -50);
-    envSpec->envBounds.max = make_float3(50, 5, 50);
+    simSpec->envBounds.min = make_float3(-50, -5, -50);
+    simSpec->envBounds.max = make_float3(50, 5, 50);
 
     //Create obstacles
     float subDiv = 2;
     for(int i = 0 ; i < subDiv; i++){
         for( int j = 0; j < subDiv; j++){
-            float envWidth = envSpec->envBounds.max.x - envSpec->envBounds.min.x;
-            float envHeight = envSpec->envBounds.max.z - envSpec->envBounds.min.z;
+            float envWidth = simSpec->envBounds.max.x - simSpec->envBounds.min.x;
+            float envHeight = simSpec->envBounds.max.z - simSpec->envBounds.min.z;
             float xSpace = envWidth/4.0f;
             float ySpace = envHeight/4.0f;
-            float offx = i*envWidth*0.5f + xSpace + envSpec->envBounds.min.x;
-            float offy = j*envHeight*0.5f + ySpace + envSpec->envBounds.min.z;
+            float offx = i*envWidth*0.5f + xSpace + simSpec->envBounds.min.x;
+            float offy = j*envHeight*0.5f + ySpace + simSpec->envBounds.min.z;
             float length = 10;
             Bounds obs;
             obs.min = make_float3(offx, 0, offy);
             obs.max = make_float3(offx + length, 0, offy + length);
-            envSpec->obstacles.push_back(obs);
+            simSpec->obstacles.push_back(obs);
         }
     }
 
-    //Merseyrail env
-//            Bounds obs0, obs1, obs2, obs3, obs4, obs5;
-//            obs0.min = make_float3(0, 0, 0);
-//            obs0.max = make_float3(0.1, 1.0, 12.0);
-//            obs1.min = make_float3(0, 0, 12);
-//            obs1.max = make_float3( 30, 1, 12.1);
-//            obs2.min = make_float3( 30, 0, 0);
-//            obs2.max = make_float3(30.1, 1.0, 12.0);
-//            obs3.min = make_float3( 0, 0, 0);
-//            obs3.max = make_float3(2, 1, 0.1);
-//            obs4.min = make_float3(4.0, 0.0, 0.0);
-//            obs4.max = make_float3(7.0, 1.0, 0.1);
-//            obs5.min = make_float3(9.0, 0.0, 0.0);
-//            obs5.max = make_float3(30.0, 1.0, 0.1);
-//            envSpec->obstacles.push_back(obs0);
-//            envSpec->obstacles.push_back(obs1);
-//            envSpec->obstacles.push_back(obs2);
-//            envSpec->obstacles.push_back(obs3);
-//            envSpec->obstacles.push_back(obs4);
-//            envSpec->obstacles.push_back(obs5);
 
-
-    //Create agents
-    int w = 10;
-    int h = 10;
-    float envWidth = envSpec->envBounds.max.x - envSpec->envBounds.min.x;
-    float envHeight = envSpec->envBounds.max.z - envSpec->envBounds.min.z;
-    float x_space = (envWidth*0.1f)/(float)w ;
-    float y_space = (envHeight*0.1f)/(float)h;
-    int populationSize = w*h;
-
-
+    //Create agent goals
     auto ag = AgentGoal();
     ag.goalType = AGENT_GOAL_FLEE_TARGET;
     ag.desiredSpeed = 2.0;
@@ -417,32 +416,38 @@ ModelEnvSpecPtr createTestSimSpec(){
     ag2.targetLocation = make_float3(25, 0, 0);
     ag2.nextIndex = -1;
 
-    envSpec->agentGoals.push_back(ag);
-    envSpec->agentGoals.push_back(ag1);
-    envSpec->agentGoals.push_back(ag2);
+    simSpec->agentGoals.push_back(ag);
+    simSpec->agentGoals.push_back(ag1);
+    simSpec->agentGoals.push_back(ag2);
 
-
+    //Create agents
+    int w = 10;
+    int h = 10;
+    float envWidth = simSpec->envBounds.max.x - simSpec->envBounds.min.x;
+    float envHeight = simSpec->envBounds.max.z - simSpec->envBounds.min.z;
+    float x_space = (envWidth*0.1f)/(float)w ;
+    float y_space = (envHeight*0.1f)/(float)h;
 
     std::default_random_engine rng;
     std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-//            for(int i = 0; i < w; i++){
-//                for(int j = 0; j < h; j++){
-//                    Agent agent;
-//                    float x = (float)i*x_space;// - (envWidth*0.5f);
-//                    float y = (float)j*y_space;// - (envHeight*0.5f);
-//                    agent.position = make_float3(x, 0, y);
-//                    agent.radius = 0.3;
-//                    agent.speed = 2.0f;
-//                    agent.direction = make_float3(dist(rng), 0, dist(rng));
-//                    agent.goals.push_back(ag);
-//                    agent.goals.push_back(ag1);
-//                    agent.goals.push_back(ag2);
-//                    envSpec->agents.push_back(agent);
-//
-//
-//                }
-//            }
 
+    for(int i = 0; i < w; i++){
+        for(int j = 0; j < h; j++){
+            Agent agent;
+            float x = (float)i*x_space;
+            float y = (float)j*y_space;
+            agent.position = make_float3(x, 0, y);
+            agent.radius = 0.3;
+            agent.speed = 2.0f;
+            agent.direction = make_float3(dist(rng), 0, dist(rng));
+            agent.goalIndex = 0;
+            simSpec->agents.push_back(agent);
+
+
+        }
+    }
+
+    //Create agent regions
     Agent agentRegion;
     agentRegion.numAgents = 10;
     agentRegion.regionBounds.min = make_float3(0,0,0);
@@ -452,7 +457,7 @@ ModelEnvSpecPtr createTestSimSpec(){
     agentRegion.direction = make_float3(dist(rng), 0, dist(rng));
     agentRegion.goalIndex = 0;
 
-    envSpec->agentRegions.push_back(agentRegion);
+    simSpec->agentRegions.push_back(agentRegion);
 
-    return envSpec;
+    return simSpec;
 }

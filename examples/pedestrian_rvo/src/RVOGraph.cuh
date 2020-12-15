@@ -5,7 +5,9 @@
 #include "common_cuda_math.h"
 #include "rvo_struct.cuh"
 
-
+/**
+ * Class primarily for building static RVO obstacles
+ */
 class RVOGraph
 {
 private:

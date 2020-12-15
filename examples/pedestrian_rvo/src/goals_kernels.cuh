@@ -1,7 +1,7 @@
 #ifndef __GOALS_KERNELS__
 #define __GOALS_KERNELS__
 
-#include "modelspec.cuh"
+#include "simulation_spec.cuh"
 
 __device__ void getAgentGoal(int goalIndex,
                         int &goalType,
@@ -11,6 +11,6 @@ __device__ void getAgentGoal(int goalIndex,
 
 __device__ int nextAgentGoalIndex(int goalIndex);
 
-void uploadAgentGoals(ModelEnvSpecPtr envSpec);
+void uploadAgentGoals(SimulationSpecPtr envSpec);
 
 #endif //__GOALS_KERNELS__

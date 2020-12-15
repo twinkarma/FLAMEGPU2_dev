@@ -216,8 +216,6 @@ ObstacleTreeNode * RVOGraph::recursivelyBuildObstacleTree( RVObstacleVecPtr obst
 		RVObstacleVecPtr leftObstacles( new RVObstacleVec());
 		RVObstacleVecPtr rightObstacles( new RVObstacleVec());
 
-		size_t leftCounter = 0;
-		size_t rightCounter = 0;
 		const size_t i = optimalSplit;
 
 		RVObstacle* obstacleI1 = (*obstacles)[i];
