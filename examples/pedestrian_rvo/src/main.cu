@@ -461,8 +461,8 @@ int main(int argc, const char ** argv) {
             visualisation.setClearColor(0.8, 0.8, 0.8);
             auto &ped_agt = visualisation.addAgent("Pedestrian");
             // Position vars are named x, y, z; so they are used by default
-            ped_agt.setModel(Stock::Models::ICOSPHERE);
-            ped_agt.setModelScale(separationRadius);
+            ped_agt.setModel("resources/cylinder_geom.obj");
+            ped_agt.setModelScale(0.6, 1.8 ,0.6);
 
             //Env bounds
             {
